@@ -1,0 +1,25 @@
+/* Code Gym × T-Bank Theme Colors */
+:root {
+  --tinkoff-yellow: #ffdd2d;
+  --tinkoff-black: #000000;
+  --tinkoff-white: #ffffff;
+  --tinkoff-gray: #f6f7f8;
+  --tinkoff-dark-gray: #9299a2;
+  --tinkoff-border: #e5e7eb;
+
+  /* Contest status colors */
+  --status-active: #10b981;
+  --status-pending: #f59e0b;
+  --status-completed: #6b7280;
+
+  /* Zone states */
+  --zone-default: #ffffff;
+  --zone-hover: #fef9e7;
+  --zone-selected: #ffdd2d;
+  --zone-completed: #d1fae5;
+
+  /* Additional colors */
+  --zone-task-bg: #ffffff;
+  --zone-side-bg: #fff4e6;
+  --zone-facility-bg: #f0f9ff;
+}
