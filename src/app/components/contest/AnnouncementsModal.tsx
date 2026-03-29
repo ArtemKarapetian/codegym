@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Bell, AlertCircle, Info } from 'lucide-react';
 import { Badge } from '@/app/components/ui/badge';
 import {
@@ -14,72 +14,38 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/app/components/ui/tabs';
-
-interface Announcement {
-  id: string;
-  title: string;
-  message: string;
-  timestamp: string;
-  important: boolean;
-  isNew: boolean;
-}
+import { api } from '@/lib/api';
+import type { Announcement } from '@shared/types';
 
 interface AnnouncementsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  cityId: string;
 }
-
-const mockAnnouncements: Announcement[] = [
-  {
-    id: '1',
-    title: 'Контест начался!',
-    message:
-      'Добро пожаловать на Code Gym × T-Bank! Контест продлится 3 часа. Желаем удачи всем участникам!',
-    timestamp: '10:00',
-    important: true,
-    isNew: true,
-  },
-  {
-    id: '2',
-    title: 'Обеденный перерыв',
-    message:
-      'С 13:00 до 13:30 будет организован обеденный перерыв. Зона питания на 2 этаже.',
-    timestamp: '09:45',
-    important: true,
-    isNew: false,
-  },
-  {
-    id: '3',
-    title: 'Бонусное задание',
-    message:
-      'Открыт сайд-квест в Photo Zone! Сделайте креативное фото команды и получите +50 баллов.',
-    timestamp: '09:30',
-    important: false,
-    isNew: false,
-  },
-  {
-    id: '4',
-    title: 'WiFi информация',
-    message: 'Сеть: CodeGym_Contest, Пароль: tbank2026',
-    timestamp: '09:00',
-    important: false,
-    isNew: false,
-  },
-];
 
 export function AnnouncementsModal({
   isOpen,
   onClose,
+  cityId,
 }: AnnouncementsModalProps) {
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [filter, setFilter] = useState<'all' | 'important'>('all');
+
+  useEffect(() => {
+    if (!isOpen) return;
+    api
+      .get<Announcement[]>(`/api/cities/${cityId}/announcements`)
+      .then(setAnnouncements)
+      .catch(console.error);
+  }, [isOpen, cityId]);
 
   const filteredAnnouncements =
     filter === 'important'
-      ? mockAnnouncements.filter((a) => a.important)
-      : mockAnnouncements;
+      ? announcements.filter((a) => a.important)
+      : announcements;
 
-  const importantCount = mockAnnouncements.filter((a) => a.important).length;
-  const newCount = mockAnnouncements.filter((a) => a.isNew).length;
+  const importantCount = announcements.filter((a) => a.important).length;
+  const newCount = announcements.filter((a) => a.isNew).length;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -105,7 +71,7 @@ export function AnnouncementsModal({
         >
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="all" onClick={() => setFilter('all')}>
-              Все ({mockAnnouncements.length})
+              Все ({announcements.length})
             </TabsTrigger>
             <TabsTrigger
               value="important"

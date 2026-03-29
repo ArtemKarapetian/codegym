@@ -1,0 +1,9 @@
+[Unit]
+Description=CodeGym DB Backup
+
+[Service]
+Type=oneshot
+User=codegym
+Group=codegym
+EnvironmentFile=/opt/codegym/.env
+ExecStart=/opt/codegym/deploy/backup.sh

@@ -7,16 +7,8 @@ import {
   TooltipTrigger,
 } from '@/app/components/ui/tooltip';
 
-export interface ZoneData {
-  id: string;
-  name: string;
-  type: 'task' | 'side-quest' | 'photo' | 'water' | 'snack';
-  position: { x: number; y: number };
-  size: { width: number; height: number };
-  description?: string;
-  difficulty?: 'easy' | 'medium' | 'hard';
-  completed?: boolean;
-}
+import type { ZoneData } from '@shared/types';
+export type { ZoneData } from '@shared/types';
 
 interface MapZoneProps {
   zone: ZoneData;

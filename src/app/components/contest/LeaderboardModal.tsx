@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Trophy, Medal, Search } from 'lucide-react';
 import { Input } from '@/app/components/ui/input';
 import {
@@ -16,50 +16,34 @@ import {
   TableHeader,
   TableRow,
 } from '@/app/components/ui/table';
-
-interface TeamScore {
-  rank: number;
-  teamName: string;
-  score: number;
-  penalty: number;
-  solved: number;
-  isCurrentTeam?: boolean;
-}
+import { api } from '@/lib/api';
+import type { TeamScore } from '@shared/types';
 
 interface LeaderboardModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentTeamName?: string;
+  cityId: string;
 }
-
-const mockLeaderboard: TeamScore[] = [
-  { rank: 1, teamName: 'CodeMasters', score: 850, penalty: 45, solved: 8 },
-  { rank: 2, teamName: 'AlgoWarriors', score: 720, penalty: 60, solved: 7 },
-  { rank: 3, teamName: 'ByteBusters', score: 680, penalty: 55, solved: 7 },
-  { rank: 4, teamName: 'StackOverflow', score: 620, penalty: 70, solved: 6 },
-  {
-    rank: 5,
-    teamName: 'Team Alpha',
-    score: 580,
-    penalty: 80,
-    solved: 6,
-    isCurrentTeam: true,
-  },
-  { rank: 6, teamName: 'DevDynamos', score: 540, penalty: 65, solved: 5 },
-  { rank: 7, teamName: 'CodeNinjas', score: 500, penalty: 90, solved: 5 },
-  { rank: 8, teamName: 'BugHunters', score: 460, penalty: 75, solved: 4 },
-  { rank: 9, teamName: 'SyntaxError', score: 420, penalty: 85, solved: 4 },
-  { rank: 10, teamName: 'GitCommit', score: 380, penalty: 95, solved: 3 },
-];
 
 export function LeaderboardModal({
   isOpen,
   onClose,
-  currentTeamName = 'Team Alpha',
+  currentTeamName = '',
+  cityId,
 }: LeaderboardModalProps) {
+  const [leaderboard, setLeaderboard] = useState<TeamScore[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const filteredLeaderboard = mockLeaderboard.filter((team) =>
+  useEffect(() => {
+    if (!isOpen) return;
+    api
+      .get<TeamScore[]>(`/api/cities/${cityId}/leaderboard`)
+      .then(setLeaderboard)
+      .catch(console.error);
+  }, [isOpen, cityId]);
+
+  const filteredLeaderboard = leaderboard.filter((team) =>
     team.teamName.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
@@ -89,7 +73,6 @@ export function LeaderboardModal({
           </DialogDescription>
         </DialogHeader>
 
-        {/* Search */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <Input
@@ -100,7 +83,6 @@ export function LeaderboardModal({
           />
         </div>
 
-        {/* Table */}
         <div className="flex-1 overflow-y-auto border border-[var(--tinkoff-border)] rounded-lg">
           <Table>
             <TableHeader>
@@ -145,7 +127,7 @@ export function LeaderboardModal({
                     +{team.penalty}
                   </TableCell>
                   <TableCell className="text-right font-mono">
-                    {team.solved}/10
+                    {team.solved}
                   </TableCell>
                 </TableRow>
               ))}
@@ -160,7 +142,6 @@ export function LeaderboardModal({
           </div>
         )}
 
-        {/* Legend */}
         <div className="bg-[var(--tinkoff-gray)] rounded-lg p-4 text-sm space-y-1">
           <p className="font-medium mb-2">Пояснение:</p>
           <p className="text-gray-600">
@@ -171,7 +152,7 @@ export function LeaderboardModal({
             (минуты)
           </p>
           <p className="text-gray-600">
-            <strong>Решено:</strong> Количество успешно решённых задач из 10
+            <strong>Решено:</strong> Количество успешно решённых задач
           </p>
         </div>
       </DialogContent>

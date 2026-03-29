@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { LogIn, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
 
 interface LoginScreenProps {
-  onLogin: (teamLogin: string, password: string) => void;
+  onLogin: (teamLogin: string, password: string) => Promise<void>;
 }
 
 export function LoginScreen({ onLogin }: LoginScreenProps) {
@@ -19,15 +19,15 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
     setError('');
     setIsLoading(true);
 
-    // Simulate login
-    setTimeout(() => {
-      if (teamLogin === 'demo' && password === 'demo') {
-        onLogin(teamLogin, password);
-      } else {
-        setError('Неверный логин или пароль');
-        setIsLoading(false);
-      }
-    }, 1000);
+    try {
+      await onLogin(teamLogin, password);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Неверный логин или пароль',
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

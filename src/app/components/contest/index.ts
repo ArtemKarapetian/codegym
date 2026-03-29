@@ -5,7 +5,9 @@ export { Header } from './Header';
 export { Toolbox } from './Toolbox';
 export { MapCanvas } from './MapCanvas';
 export { MapZone } from './MapZone';
+export { ZoneGrid } from './ZoneGrid';
 export { RightDrawer } from './RightDrawer';
+export { PublicLeaderboard } from './PublicLeaderboard';
 
 // Modals
 export { RulesModal } from './RulesModal';
@@ -14,4 +16,4 @@ export { AnnouncementsModal } from './AnnouncementsModal';
 export { LeaderboardModal } from './LeaderboardModal';
 
 // Types
-export type { ZoneData } from './MapZone';
+export type { ZoneData } from '@shared/types';
