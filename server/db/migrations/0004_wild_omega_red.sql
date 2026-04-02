@@ -1,0 +1,1 @@
+ALTER TABLE `cities` ADD `contest_date` text;

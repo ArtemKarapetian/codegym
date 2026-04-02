@@ -111,11 +111,8 @@ export function MainArena({ teamName, cityId, onLogout }: MainArenaProps) {
     setIsDrawerOpen(true);
   };
 
-  const handleOpenInEjudge = (zone: ZoneData) => {
-    toast.success(`Открываем ${zone.name} в eJudge...`);
-    setTimeout(() => {
-      window.open('https://ejudge.example.com', '_blank');
-    }, 500);
+  const handleOpenInEjudge = (_zone: ZoneData) => {
+    toast.info('Ссылка на задачи будет доступна позже');
   };
 
   const handleCloseDrawer = () => {

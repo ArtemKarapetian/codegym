@@ -35,11 +35,13 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
       <div className="w-full max-w-md animate-in fade-in slide-in-from-bottom-4 duration-500">
         {/* Logo & Title */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-[var(--tinkoff-yellow)] rounded-3xl mb-4 shadow-lg animate-in zoom-in duration-700">
-            <span className="text-3xl font-bold">CG</span>
-          </div>
-          <h1 className="text-3xl lg:text-4xl font-bold mb-2 animate-in fade-in slide-in-from-bottom-2 duration-700 delay-100">
-            Code Gym × T-Bank
+          <img
+            src="/logo.png"
+            alt="Код спорта"
+            className="h-8 mx-auto mb-4 animate-in zoom-in duration-700"
+          />
+          <h1 className="text-3xl lg:text-4xl font-bold mb-2 animate-in fade-in slide-in-from-bottom-2 duration-700 delay-100 sr-only">
+            Код спорта
           </h1>
           <p className="text-gray-600 animate-in fade-in slide-in-from-bottom-2 duration-700 delay-200">
             Офлайн-контест
@@ -117,7 +119,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
           <p className="text-sm text-gray-600">
             Нужна помощь?{' '}
             <a
-              href="https://t.me/codegym24"
+              href="https://t.me/kod_sporta"
               target="_blank"
               rel="noopener noreferrer"
               className="text-blue-600 hover:underline font-medium"
@@ -125,7 +127,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
               Написать организаторам в Telegram
             </a>
           </p>
-          <p className="text-xs text-gray-500 mt-1">@codegym24</p>
+          <p className="text-xs text-gray-500 mt-1">@kod_sporta</p>
         </div>
 
         {/* Demo credentials hint */}

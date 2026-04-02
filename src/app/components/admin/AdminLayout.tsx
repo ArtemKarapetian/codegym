@@ -13,9 +13,7 @@ export function AdminLayout() {
         <div className="flex items-center justify-between px-6 h-14">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-[var(--tinkoff-yellow)] rounded-lg flex items-center justify-center">
-                <span className="font-bold text-sm">CG</span>
-              </div>
+              <img src="/logo.png" alt="Код спорта" className="h-3.5" />
               <span className="font-semibold">Admin</span>
             </div>
             <nav className="flex items-center gap-1 ml-6">

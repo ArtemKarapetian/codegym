@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from '@/lib/auth';
 import { LoginScreen } from '@/app/components/contest/LoginScreen';
 import { MainArena } from '@/app/components/contest/MainArena';
 import { PublicLeaderboard } from '@/app/components/contest/PublicLeaderboard';
+import { CityListPage } from '@/app/components/contest/CityListPage';
 import { ErrorBoundary } from '@/app/components/contest/ErrorBoundary';
 import { AdminLayout } from '@/app/components/admin/AdminLayout';
 import { CitiesPage } from '@/app/components/admin/CitiesPage';
@@ -36,7 +37,7 @@ function RootRedirect() {
   const { user, loading } = useAuth();
 
   if (loading) return null;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/cities" replace />;
   if (user.role === 'admin') return <Navigate to="/admin" replace />;
   return <Navigate to="/contest" replace />;
 }
@@ -46,6 +47,7 @@ function AppRoutes() {
     <AuthProvider>
       <Routes>
         <Route path="/" element={<RootRedirect />} />
+        <Route path="/cities" element={<CityListPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route
           path="/contest"

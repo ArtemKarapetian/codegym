@@ -30,6 +30,7 @@ export interface City {
   durationMin: number;
   timerStatus: TimerStatus;
   mapEnabled: boolean;
+  contestDate: string | null;
   createdAt: string;
 }
 

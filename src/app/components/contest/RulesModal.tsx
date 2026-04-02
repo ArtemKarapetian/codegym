@@ -18,7 +18,7 @@ export function RulesModal({ isOpen, onClose }: RulesModalProps) {
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl">
-            Правила контеста Code Gym × T-Bank
+            Правила контеста Код спорта
           </DialogTitle>
           <DialogDescription>
             Внимательно ознакомьтесь с правилами перед началом
@@ -42,7 +42,7 @@ export function RulesModal({ isOpen, onClose }: RulesModalProps) {
             <div>
               <h3 className="font-semibold mb-2">1. Формат контеста</h3>
               <p className="text-sm text-gray-600 leading-relaxed">
-                Code Gym — это уникальный формат офлайн-контеста, где
+                Код спорта — это уникальный формат офлайн-контеста, где
                 программирование сочетается с физической активностью. Каждая
                 зона представляет собой связку "Задача ↔ Упражнение".
               </p>
@@ -91,10 +91,10 @@ export function RulesModal({ isOpen, onClose }: RulesModalProps) {
               <strong>Спорная ситуация?</strong> Свяжитесь с организаторами в
               Telegram:{' '}
               <a
-                href="https://t.me/codegym24"
+                href="https://t.me/kod_sporta"
                 className="text-blue-600 hover:underline"
               >
-                @codegym24
+                @kod_sporta
               </a>
             </p>
           </div>

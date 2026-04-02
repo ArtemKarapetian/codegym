@@ -15,6 +15,7 @@ export const cities = sqliteTable('cities', {
   mapEnabled: integer('map_enabled', { mode: 'boolean' })
     .notNull()
     .default(true),
+  contestDate: text('contest_date'),
   createdAt: text('created_at').notNull(),
 });
 

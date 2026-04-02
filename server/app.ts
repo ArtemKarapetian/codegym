@@ -9,6 +9,7 @@ import teams from './routes/teams';
 import announcements from './routes/announcements';
 import timer from './routes/timer';
 import leaderboard from './routes/leaderboard';
+import sync from './routes/sync';
 
 export function createApp() {
   const app = new Hono();
@@ -36,6 +37,7 @@ export function createApp() {
   app.route('/api', announcements);
   app.route('/api', timer);
   app.route('/api', leaderboard);
+  app.route('/api', sync);
 
   // Health check
   app.get('/api/health', (c) => c.json({ ok: true }));

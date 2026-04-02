@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
-import { Trophy, Medal, Maximize, Minimize } from 'lucide-react';
+import { useParams, Link } from 'react-router-dom';
+import { Trophy, Medal, Maximize, Minimize, ArrowLeft } from 'lucide-react';
 import type { TeamScore, ProblemResult } from '@shared/types';
 
 const PROBLEMS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
@@ -123,15 +123,15 @@ export function PublicLeaderboard() {
       <div className="bg-[var(--tinkoff-yellow)] px-8 py-5 shrink-0">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-black rounded-xl flex items-center justify-center">
-              <span className="text-[var(--tinkoff-yellow)] font-bold text-lg">
-                CG
-              </span>
-            </div>
+            <Link
+              to="/cities"
+              className="p-2 rounded-lg bg-black/10 hover:bg-black/20 transition-colors"
+              title="Назад к городам"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
+            <img src="/logo.png" alt="Код спорта" className="h-5" />
             <div>
-              <h1 className="text-2xl font-bold text-black">
-                Code Gym × T-Bank
-              </h1>
               <p className="text-sm text-black/60">Лидерборд</p>
             </div>
           </div>

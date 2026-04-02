@@ -161,6 +161,51 @@ router.post(
   },
 );
 
+// Set remaining time (admin) — adjust on the fly
+router.post(
+  '/cities/:cityId/timer/set-remaining',
+  authMiddleware,
+  adminMiddleware,
+  async (c) => {
+    const cityId = c.req.param('cityId');
+    const city = db.select().from(cities).where(eq(cities.id, cityId)).get();
+    if (!city) return c.json({ error: 'City not found' }, 404);
+
+    const body = await c.req.json<{ remainingSeconds: number }>();
+    const remaining = Math.max(0, Math.floor(body.remainingSeconds));
+
+    if (city.timerStatus === 'running') {
+      // Recalculate startTime so that elapsed = totalSeconds - remaining
+      const totalSeconds = city.durationMin * 60;
+      const newStart = new Date(
+        Date.now() - (totalSeconds - remaining) * 1000,
+      ).toISOString();
+      db.update(cities)
+        .set({ startTime: newStart })
+        .where(eq(cities.id, cityId))
+        .run();
+    } else if (city.timerStatus === 'paused') {
+      db.update(cities)
+        .set({ pausedAt: remaining })
+        .where(eq(cities.id, cityId))
+        .run();
+    } else if (city.timerStatus === 'pending') {
+      // Update durationMin to match
+      db.update(cities)
+        .set({ durationMin: Math.ceil(remaining / 60) })
+        .where(eq(cities.id, cityId))
+        .run();
+    }
+
+    const updated = db
+      .select()
+      .from(cities)
+      .where(eq(cities.id, cityId))
+      .get()!;
+    return c.json(computeTimer(updated));
+  },
+);
+
 // Stop timer (admin)
 router.post(
   '/cities/:cityId/timer/stop',

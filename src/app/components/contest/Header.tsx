@@ -45,16 +45,7 @@ export function Header({
       <div className="flex items-center justify-between px-4 lg:px-8 h-16 lg:h-20">
         {/* Logo */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-[var(--tinkoff-yellow)] rounded-lg flex items-center justify-center shadow-lg">
-              <span className="font-bold text-sm sm:text-lg">CG</span>
-            </div>
-            <div className="hidden sm:block">
-              <h1 className="font-semibold text-base lg:text-lg">
-                Code Gym × T-Bank
-              </h1>
-            </div>
-          </div>
+          <img src="/logo.png" alt="Код спорта" className="h-4 sm:h-5" />
         </div>
 
         {/* Center: Status */}

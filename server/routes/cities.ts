@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { db } from '../db/client';
-import { cities } from '../db/schema';
+import { cities, leaderboardCache, users } from '../db/schema';
 import { authMiddleware, adminMiddleware } from '../middleware/auth';
 import { createCitySchema, updateCitySchema } from '@shared/validation';
 import type { JwtPayload } from '../middleware/auth';
@@ -19,9 +19,69 @@ function rowToCity(row: typeof cities.$inferSelect): City {
     durationMin: row.durationMin,
     timerStatus: row.timerStatus as City['timerStatus'],
     mapEnabled: row.mapEnabled,
+    contestDate: row.contestDate ?? null,
     createdAt: row.createdAt,
   };
 }
+
+// Public list of cities with summary stats (no auth, for landing page)
+router.get('/public', (c) => {
+  const rows = db.select().from(cities).all();
+
+  // Get leaderboard stats per city in one query
+  const lbRows = db
+    .select({
+      cityId: leaderboardCache.cityId,
+      userId: leaderboardCache.userId,
+      solved: leaderboardCache.solved,
+      teamName: users.teamName,
+    })
+    .from(leaderboardCache)
+    .innerJoin(users, eq(leaderboardCache.userId, users.id))
+    .all();
+
+  // Aggregate per city
+  const statsMap = new Map<
+    string,
+    {
+      teams: number;
+      totalSolved: number;
+      maxSolved: number;
+      topTeam: string | null;
+    }
+  >();
+  for (const r of lbRows) {
+    let s = statsMap.get(r.cityId);
+    if (!s) {
+      s = { teams: 0, totalSolved: 0, maxSolved: 0, topTeam: null };
+      statsMap.set(r.cityId, s);
+    }
+    s.teams++;
+    s.totalSolved += r.solved;
+    if (r.solved > s.maxSolved) {
+      s.maxSolved = r.solved;
+      s.topTeam = r.teamName;
+    }
+  }
+
+  const result = rows.map((row) => {
+    const city = rowToCity(row);
+    const s = statsMap.get(row.id);
+    return {
+      ...city,
+      stats: s
+        ? {
+            teams: s.teams,
+            avgSolved: Math.round((s.totalSolved / s.teams) * 10) / 10,
+            maxSolved: s.maxSolved,
+            topTeam: s.topTeam,
+          }
+        : null,
+    };
+  });
+
+  return c.json(result);
+});
 
 // List all cities
 router.get('/', authMiddleware, (c) => {
@@ -59,6 +119,7 @@ router.post('/', authMiddleware, adminMiddleware, async (c) => {
       startTime: parsed.data.startTime ?? null,
       durationMin: parsed.data.durationMin,
       mapEnabled: parsed.data.mapEnabled,
+      contestDate: parsed.data.contestDate ?? null,
       timerStatus: 'pending',
       createdAt: now,
     })

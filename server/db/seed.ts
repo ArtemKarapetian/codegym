@@ -41,67 +41,124 @@ db.insert(users)
   .run();
 
 // ── Cities ──
-const moscowId = nanoid();
-const kazanId = nanoid();
 
-db.insert(cities)
-  .values([
-    {
-      id: moscowId,
-      name: 'Москва',
-      timezone: 'Europe/Moscow',
-      durationMin: 240,
-      timerStatus: 'pending',
-      mapEnabled: true,
-      createdAt: now,
-    },
-    {
-      id: kazanId,
-      name: 'Казань',
-      timezone: 'Europe/Moscow',
+// April 12 cities
+const april12Cities = [
+  { name: 'Москва', tz: 'Europe/Moscow' },
+  { name: 'Санкт-Петербург', tz: 'Europe/Moscow' },
+  { name: 'Екатеринбург', tz: 'Asia/Yekaterinburg' },
+  { name: 'Казань', tz: 'Europe/Moscow' },
+  { name: 'Иннополис', tz: 'Europe/Moscow' },
+  { name: 'Нижний Новгород', tz: 'Europe/Moscow' },
+  { name: 'Новосибирск', tz: 'Asia/Novosibirsk' },
+  { name: 'Самара', tz: 'Europe/Samara' },
+  { name: 'Краснодар', tz: 'Europe/Moscow' },
+  { name: 'Уфа', tz: 'Asia/Yekaterinburg' },
+  { name: 'Томск', tz: 'Asia/Tomsk' },
+  { name: 'Омск', tz: 'Asia/Omsk' },
+  { name: 'Рязань', tz: 'Europe/Moscow' },
+  { name: 'Ростов', tz: 'Europe/Moscow' },
+  { name: 'Ижевск', tz: 'Europe/Samara' },
+  { name: 'Пермь', tz: 'Asia/Yekaterinburg' },
+  { name: 'Саратов', tz: 'Europe/Saratov' },
+  { name: 'Челябинск', tz: 'Asia/Yekaterinburg' },
+  { name: 'Сочи', tz: 'Europe/Moscow' },
+  { name: 'Владивосток', tz: 'Asia/Vladivostok' },
+  { name: 'Красноярск', tz: 'Asia/Krasnoyarsk' },
+];
+
+// April 11 cities
+const april11Cities = [{ name: 'Минск', tz: 'Europe/Minsk' }];
+
+const cityIds: Record<string, string> = {};
+
+for (const c of april12Cities) {
+  const id = nanoid();
+  cityIds[c.name] = id;
+  db.insert(cities)
+    .values({
+      id,
+      name: c.name,
+      timezone: c.tz,
       durationMin: 240,
       timerStatus: 'pending',
       mapEnabled: false,
-      createdAt: now,
-    },
-  ])
-  .run();
-
-// ── Teams ──
-const moscowTeams = [
-  { login: 'team-msk-1', teamName: 'CodeMasters', pw: '1234' },
-  { login: 'team-msk-2', teamName: 'AlgoWarriors', pw: '1234' },
-  { login: 'team-msk-3', teamName: 'ByteBusters', pw: '1234' },
-  { login: 'team-msk-4', teamName: 'StackOverflow', pw: '1234' },
-  { login: 'team-msk-5', teamName: 'Team Alpha', pw: '1234' },
-];
-
-const kazanTeams = [
-  { login: 'team-kzn-1', teamName: 'KazanCoders', pw: '1234' },
-  { login: 'team-kzn-2', teamName: 'TatarDevs', pw: '1234' },
-  { login: 'team-kzn-3', teamName: 'IT-Kazan', pw: '1234' },
-];
-
-const teamIds: Record<string, string> = {};
-
-for (const t of [...moscowTeams, ...kazanTeams]) {
-  const id = nanoid();
-  const cityId = moscowTeams.includes(t) ? moscowId : kazanId;
-  teamIds[t.login] = id;
-  db.insert(users)
-    .values({
-      id,
-      login: t.login,
-      passwordHash: hash(t.pw),
-      role: 'team',
-      teamName: t.teamName,
-      cityId,
+      contestDate: '2025-04-12',
       createdAt: now,
     })
     .run();
 }
 
-// Demo user for quick testing
+for (const c of april11Cities) {
+  const id = nanoid();
+  cityIds[c.name] = id;
+  db.insert(cities)
+    .values({
+      id,
+      name: c.name,
+      timezone: c.tz,
+      durationMin: 240,
+      timerStatus: 'pending',
+      mapEnabled: false,
+      contestDate: '2025-04-11',
+      createdAt: now,
+    })
+    .run();
+}
+
+// ── Teams for ALL cities ──
+// Short city codes for login generation
+const cityCodes: Record<string, string> = {
+  Москва: 'msk',
+  'Санкт-Петербург': 'spb',
+  Екатеринбург: 'ekb',
+  Казань: 'kzn',
+  Иннополис: 'inn',
+  'Нижний Новгород': 'nno',
+  Новосибирск: 'nsk',
+  Самара: 'sam',
+  Краснодар: 'krd',
+  Уфа: 'ufa',
+  Томск: 'tom',
+  Омск: 'omk',
+  Рязань: 'rzn',
+  Ростов: 'rst',
+  Ижевск: 'izh',
+  Пермь: 'prm',
+  Саратов: 'sar',
+  Челябинск: 'chb',
+  Сочи: 'soc',
+  Владивосток: 'vdk',
+  Красноярск: 'krs',
+  Минск: 'mnk',
+};
+
+const teamIds: Record<string, string> = {};
+
+const allCityNames = [...april12Cities, ...april11Cities].map((c) => c.name);
+for (const cityName of allCityNames) {
+  const cid = cityIds[cityName];
+  const code = cityCodes[cityName] || cityName.slice(0, 3).toLowerCase();
+
+  for (let i = 1; i <= 3; i++) {
+    const login = `team-${code}-${i}`;
+    const id = nanoid();
+    teamIds[login] = id;
+    db.insert(users)
+      .values({
+        id,
+        login,
+        passwordHash: hash('1234'),
+        role: 'team',
+        teamName: `${cityName} Team ${i}`,
+        cityId: cid,
+        createdAt: now,
+      })
+      .run();
+  }
+}
+
+// Demo user for quick testing (Moscow)
 const demoId = nanoid();
 teamIds['demo'] = demoId;
 db.insert(users)
@@ -110,13 +167,16 @@ db.insert(users)
     login: 'demo',
     passwordHash: hash('demo'),
     role: 'team',
-    teamName: 'Team Alpha',
-    cityId: moscowId,
+    teamName: 'Demo Team',
+    cityId: cityIds['Москва'],
     createdAt: now,
   })
   .run();
 
-// ── Zones (Moscow — with map, 9 tasks A-I + utility zones) ──
+const moscowId = cityIds['Москва'];
+const kazanId = cityIds['Казань'];
+
+// ── Zones (Moscow — 9 tasks A-I + utility zones) ──
 const moscowZones: {
   name: string;
   type: 'task' | 'side-quest' | 'photo' | 'water' | 'snack';
@@ -378,7 +438,7 @@ const announceData = [
     cityId: moscowId,
     title: 'Контест начался!',
     message:
-      'Добро пожаловать на Code Gym × T-Bank! Контест продлится 4 часа. Желаем удачи всем участникам!',
+      'Добро пожаловать на Код спорта! Контест продлится 4 часа. Желаем удачи всем участникам!',
     important: true,
   },
   {
@@ -390,7 +450,7 @@ const announceData = [
   {
     cityId: kazanId,
     title: 'Контест начался!',
-    message: 'Добро пожаловать на Code Gym × T-Bank в Казани! Удачи!',
+    message: 'Добро пожаловать на Код спорта в Казани! Удачи!',
     important: true,
   },
 ];
@@ -459,13 +519,10 @@ function computeFromProblems(
 const teamScores: { login: string; solvedCount: number }[] = [
   { login: 'team-msk-1', solvedCount: 8 },
   { login: 'team-msk-2', solvedCount: 7 },
-  { login: 'team-msk-3', solvedCount: 7 },
-  { login: 'team-msk-4', solvedCount: 6 },
-  { login: 'demo', solvedCount: 5 },
-  { login: 'team-msk-5', solvedCount: 4 },
+  { login: 'team-msk-3', solvedCount: 5 },
+  { login: 'demo', solvedCount: 4 },
   { login: 'team-kzn-1', solvedCount: 6 },
-  { login: 'team-kzn-2', solvedCount: 4 },
-  { login: 'team-kzn-3', solvedCount: 3 },
+  { login: 'team-kzn-2', solvedCount: 3 },
 ];
 
 for (const s of teamScores) {
@@ -489,8 +546,13 @@ for (const s of teamScores) {
 }
 
 console.log('Seed complete!');
-console.log('  Admin: admin / admin');
-console.log('  Demo:  demo / demo (Moscow)');
-console.log('  Teams: team-msk-1..5 / 1234, team-kzn-1..3 / 1234');
-console.log(`  Moscow ID: ${moscowId}`);
-console.log(`  Kazan ID:  ${kazanId}`);
+console.log('  Admin:  admin / admin');
+console.log('  Demo:   demo / demo (Москва)');
+console.log('  Teams:  team-{city}-{1..3} / 1234');
+console.log('  Cities:', allCityNames.length);
+console.log(
+  '  Codes:',
+  Object.entries(cityCodes)
+    .map(([k, v]) => `${v}=${k}`)
+    .join(', '),
+);

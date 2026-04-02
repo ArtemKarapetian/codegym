@@ -50,7 +50,7 @@ export function ErrorState({ type, onRetry }: ErrorStateProps) {
           <p className="text-sm text-gray-500">
             Нужна помощь?{' '}
             <a
-              href="https://t.me/codegym24"
+              href="https://t.me/kod_sporta"
               target="_blank"
               rel="noopener noreferrer"
               className="text-blue-600 hover:underline"

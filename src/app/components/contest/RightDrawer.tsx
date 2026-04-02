@@ -15,7 +15,7 @@ export function RightDrawer({
   zone,
   isOpen,
   onClose,
-  onOpenInEjudge,
+  onOpenInEjudge: _onOpenInEjudge,
   isMobile = false,
 }: RightDrawerProps) {
   if (!zone) return null;
@@ -136,14 +136,19 @@ export function RightDrawer({
 
         {/* Actions */}
         <div className="p-6 border-t border-[var(--tinkoff-border)] space-y-3">
-          {zone.type === 'task' && onOpenInEjudge && (
-            <Button
-              className="w-full bg-[var(--tinkoff-yellow)] hover:bg-[var(--tinkoff-yellow)]/90 text-black font-medium"
-              onClick={() => onOpenInEjudge(zone)}
-            >
-              <ExternalLink className="w-4 h-4 mr-2" />
-              Открыть задачу в eJudge
-            </Button>
+          {zone.type === 'task' && (
+            <div className="bg-[var(--tinkoff-gray)] rounded-lg p-4 text-center">
+              <p className="text-sm text-gray-500 mb-2">
+                Ссылка на задачи будет доступна позже
+              </p>
+              <Button
+                className="w-full bg-[var(--tinkoff-yellow)] hover:bg-[var(--tinkoff-yellow)]/90 text-black font-medium opacity-60 cursor-not-allowed"
+                disabled
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Перейти к задаче
+              </Button>
+            </div>
           )}
           <Button variant="outline" className="w-full" onClick={onClose}>
             <MapPin className="w-4 h-4 mr-2" />

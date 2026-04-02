@@ -61,14 +61,14 @@ export function ContactModal({ isOpen, onClose }: ContactModalProps) {
               className="w-full bg-[#0088cc] hover:bg-[#0088cc]/90 text-white"
             >
               <a
-                href="https://t.me/codegym24"
+                href="https://t.me/kod_sporta"
                 target="_blank"
                 rel="noopener noreferrer"
               >
                 Написать в Telegram
               </a>
             </Button>
-            <p className="text-xs text-gray-500">@codegym24</p>
+            <p className="text-xs text-gray-500">@kod_sporta</p>
           </div>
 
           {/* Divider */}

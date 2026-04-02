@@ -1,6 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, MapPin, Clock, Map, List, Trash2 } from 'lucide-react';
+import {
+  Plus,
+  MapPin,
+  Clock,
+  Map,
+  List,
+  Trash2,
+  RefreshCw,
+} from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
@@ -17,6 +26,7 @@ import type { City } from '@shared/types';
 export function CitiesPage() {
   const [cities, setCities] = useState<City[]>([]);
   const [showCreate, setShowCreate] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   const fetchCities = () => {
     api.get<City[]>('/api/cities').then(setCities).catch(console.error);
@@ -43,10 +53,47 @@ export function CitiesPage() {
     <div className="max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Города</h1>
-        <Button onClick={() => setShowCreate(true)} className="gap-2">
-          <Plus className="w-4 h-4" />
-          Добавить город
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={async () => {
+              setSyncing(true);
+              try {
+                const res = await api.post<{
+                  synced: number;
+                  created: number;
+                  skippedNoCity: string[];
+                  error?: string;
+                }>('/api/admin/sync-sheets', {});
+                if (res.error) {
+                  toast.error(`Ошибка: ${res.error}`);
+                } else {
+                  toast.success(
+                    `Синхронизировано: ${res.synced} команд` +
+                      (res.created ? `, создано: ${res.created}` : '') +
+                      (res.skippedNoCity.length
+                        ? `. Города не найдены: ${res.skippedNoCity.join(', ')}`
+                        : ''),
+                  );
+                }
+              } catch (err) {
+                toast.error('Ошибка синхронизации');
+                console.error(err);
+              } finally {
+                setSyncing(false);
+              }
+            }}
+            disabled={syncing}
+            className="gap-2"
+          >
+            <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Синхронизация...' : 'Google Sheets'}
+          </Button>
+          <Button onClick={() => setShowCreate(true)} className="gap-2">
+            <Plus className="w-4 h-4" />
+            Добавить город
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4">

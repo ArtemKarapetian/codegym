@@ -15,6 +15,7 @@ export const createCitySchema = z.object({
   startTime: z.string().optional(),
   durationMin: z.number().int().positive().default(240),
   mapEnabled: z.boolean().default(true),
+  contestDate: z.string().optional(),
 });
 
 export const updateCitySchema = z.object({
@@ -23,6 +24,7 @@ export const updateCitySchema = z.object({
   startTime: z.string().nullable().optional(),
   durationMin: z.number().int().positive().optional(),
   mapEnabled: z.boolean().optional(),
+  contestDate: z.string().nullable().optional(),
 });
 
 // ── Zone ──
