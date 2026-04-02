@@ -4,7 +4,7 @@ import { db } from '../db/client';
 import { users, leaderboardCache } from '../db/schema';
 import { authMiddleware } from '../middleware/auth';
 import type { JwtPayload } from '../middleware/auth';
-import type { TeamScore } from '@shared/types';
+import type { TeamScore, ProblemResult } from '@shared/types';
 
 const router = new Hono<{ Variables: { user: JwtPayload } }>();
 
@@ -17,23 +17,38 @@ function buildLeaderboard(cityId: string, currentUserId?: string): TeamScore[] {
       score: leaderboardCache.score,
       penalty: leaderboardCache.penalty,
       solved: leaderboardCache.solved,
+      problems: leaderboardCache.problems,
     })
     .from(leaderboardCache)
     .innerJoin(users, eq(leaderboardCache.userId, users.id))
     .where(eq(leaderboardCache.cityId, cityId))
     .all();
 
-  // Sort: highest score first, then lowest penalty
-  rows.sort((a, b) => b.score - a.score || a.penalty - b.penalty);
+  // Sort: most solved first, then lowest penalty, then highest score
+  rows.sort(
+    (a, b) => b.solved - a.solved || a.penalty - b.penalty || b.score - a.score,
+  );
 
-  return rows.map((r, i) => ({
-    rank: i + 1,
-    teamName: r.teamName || r.login,
-    score: r.score,
-    penalty: r.penalty,
-    solved: r.solved,
-    isCurrentTeam: currentUserId ? r.userId === currentUserId : undefined,
-  }));
+  return rows.map((r, i) => {
+    let problems: Record<string, ProblemResult> = {};
+    if (r.problems) {
+      try {
+        problems = JSON.parse(r.problems);
+      } catch {
+        // ignore
+      }
+    }
+
+    return {
+      rank: i + 1,
+      teamName: r.teamName || r.login,
+      score: r.score,
+      penalty: r.penalty,
+      solved: r.solved,
+      problems,
+      isCurrentTeam: currentUserId ? r.userId === currentUserId : undefined,
+    };
+  });
 }
 
 // Authenticated leaderboard

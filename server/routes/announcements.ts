@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { db } from '../db/client';
-import { announcements } from '../db/schema';
+import { announcements, announcementReads } from '../db/schema';
 import { authMiddleware, adminMiddleware } from '../middleware/auth';
 import { createAnnouncementSchema } from '@shared/validation';
 import type { JwtPayload } from '../middleware/auth';
@@ -12,9 +12,9 @@ const router = new Hono<{ Variables: { user: JwtPayload } }>();
 
 function rowToAnnouncement(
   row: typeof announcements.$inferSelect,
+  readIds: Set<string>,
 ): Announcement {
   const createdAt = new Date(row.createdAt);
-  const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
 
   return {
     id: row.id,
@@ -25,13 +25,15 @@ function rowToAnnouncement(
       minute: '2-digit',
     }),
     important: row.important,
-    isNew: createdAt > fiveMinAgo,
+    isNew: !readIds.has(row.id),
   };
 }
 
 // List announcements for a city
 router.get('/cities/:cityId/announcements', authMiddleware, (c) => {
   const cityId = c.req.param('cityId');
+  const user = c.get('user');
+
   const rows = db
     .select()
     .from(announcements)
@@ -39,7 +41,55 @@ router.get('/cities/:cityId/announcements', authMiddleware, (c) => {
     .orderBy(desc(announcements.createdAt))
     .all();
 
-  return c.json(rows.map(rowToAnnouncement));
+  // Get which announcements this user has read
+  const reads = db
+    .select({ announcementId: announcementReads.announcementId })
+    .from(announcementReads)
+    .where(eq(announcementReads.userId, user.sub))
+    .all();
+
+  const readIds = new Set(reads.map((r) => r.announcementId));
+
+  return c.json(rows.map((r) => rowToAnnouncement(r, readIds)));
+});
+
+// Mark announcements as read
+router.post('/cities/:cityId/announcements/read', authMiddleware, async (c) => {
+  const user = c.get('user');
+  const body = await c.req.json();
+  const ids = body.ids as string[];
+
+  if (!Array.isArray(ids)) {
+    return c.json({ error: 'ids array required' }, 400);
+  }
+
+  const now = new Date().toISOString();
+
+  for (const announcementId of ids) {
+    const existing = db
+      .select()
+      .from(announcementReads)
+      .where(
+        and(
+          eq(announcementReads.userId, user.sub),
+          eq(announcementReads.announcementId, announcementId),
+        ),
+      )
+      .get();
+
+    if (!existing) {
+      db.insert(announcementReads)
+        .values({
+          id: nanoid(),
+          userId: user.sub,
+          announcementId,
+          readAt: now,
+        })
+        .run();
+    }
+  }
+
+  return c.json({ ok: true });
 });
 
 // Create announcement (admin)
@@ -74,7 +124,7 @@ router.post(
       .from(announcements)
       .where(eq(announcements.id, id))
       .get()!;
-    return c.json(rowToAnnouncement(row), 201);
+    return c.json(rowToAnnouncement(row, new Set()), 201);
   },
 );
 

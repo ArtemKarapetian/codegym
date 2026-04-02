@@ -142,7 +142,7 @@ export function MainArena({ teamName, cityId, onLogout }: MainArenaProps) {
         onLogout={onLogout}
       />
 
-      <div className="flex-1 relative">
+      <div className="flex-1 relative min-h-0">
         {mapEnabled ? (
           <MapCanvas
             zones={zones}

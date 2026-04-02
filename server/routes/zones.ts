@@ -24,6 +24,8 @@ function rowToZone(
     difficulty: (row.difficulty as ZoneData['difficulty']) ?? undefined,
     completed,
     ejudgeProblemId: row.ejudgeProblemId ?? undefined,
+    problemLetter: row.problemLetter ?? undefined,
+    exercise: row.exercise ?? undefined,
     sortOrder: row.sortOrder,
   };
 }

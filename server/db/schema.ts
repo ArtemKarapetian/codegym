@@ -44,6 +44,8 @@ export const zones = sqliteTable('zones', {
   sizeWidth: integer('size_width').default(140),
   sizeHeight: integer('size_height').default(120),
   ejudgeProblemId: text('ejudge_problem_id'),
+  problemLetter: text('problem_letter'),
+  exercise: text('exercise'),
   sortOrder: integer('sort_order').notNull().default(0),
   createdAt: text('created_at').notNull(),
 });
@@ -57,6 +59,17 @@ export const announcements = sqliteTable('announcements', {
   message: text('message').notNull(),
   important: integer('important', { mode: 'boolean' }).notNull().default(false),
   createdAt: text('created_at').notNull(),
+});
+
+export const announcementReads = sqliteTable('announcement_reads', {
+  id: text('id').primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id),
+  announcementId: text('announcement_id')
+    .notNull()
+    .references(() => announcements.id),
+  readAt: text('read_at').notNull(),
 });
 
 export const teamProgress = sqliteTable('team_progress', {
@@ -80,6 +93,8 @@ export const leaderboardCache = sqliteTable('leaderboard_cache', {
     .notNull()
     .references(() => users.id),
   score: integer('score').notNull().default(0),
+  // JSON: per-problem results, e.g. {"A":{"score":100,"penalty":0,"attempts":1},...}
+  problems: text('problems'),
   penalty: integer('penalty').notNull().default(0),
   solved: integer('solved').notNull().default(0),
   updatedAt: text('updated_at').notNull(),

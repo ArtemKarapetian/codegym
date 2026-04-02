@@ -35,7 +35,19 @@ export function AnnouncementsModal({
     if (!isOpen) return;
     api
       .get<Announcement[]>(`/api/cities/${cityId}/announcements`)
-      .then(setAnnouncements)
+      .then((data) => {
+        setAnnouncements(data);
+
+        // Mark unread announcements as read
+        const unreadIds = data.filter((a) => a.isNew).map((a) => a.id);
+        if (unreadIds.length > 0) {
+          api
+            .post(`/api/cities/${cityId}/announcements/read`, {
+              ids: unreadIds,
+            })
+            .catch(console.error);
+        }
+      })
       .catch(console.error);
   }, [isOpen, cityId]);
 

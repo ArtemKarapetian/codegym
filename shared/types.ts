@@ -13,6 +13,8 @@ export interface ZoneData {
   difficulty?: Difficulty;
   completed?: boolean;
   ejudgeProblemId?: string;
+  problemLetter?: string;
+  exercise?: string;
   sortOrder: number;
 }
 
@@ -64,12 +66,20 @@ export interface Announcement {
 
 // ── Leaderboard ──
 
+export interface ProblemResult {
+  score: number;
+  penalty: number;
+  attempts: number;
+  solved: boolean;
+}
+
 export interface TeamScore {
   rank: number;
   teamName: string;
   score: number;
   penalty: number;
   solved: number;
+  problems: Record<string, ProblemResult>;
   isCurrentTeam?: boolean;
 }
 

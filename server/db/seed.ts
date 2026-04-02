@@ -116,87 +116,108 @@ db.insert(users)
   })
   .run();
 
-// ── Zones (Moscow — with map) ──
-const moscowZones = [
+// ── Zones (Moscow — with map, 9 tasks A-I + utility zones) ──
+const moscowZones: {
+  name: string;
+  type: 'task' | 'side-quest' | 'photo' | 'water' | 'snack';
+  difficulty?: 'easy' | 'medium' | 'hard';
+  x: number;
+  y: number;
+  desc: string;
+  letter?: string;
+  exercise?: string;
+  w?: number;
+  h?: number;
+}[] = [
   {
-    name: 'Зона 1: Алгоритмы ↔ Отжимания',
-    type: 'task' as const,
-    difficulty: 'easy' as const,
+    name: 'Задача A: Алгоритмы',
+    type: 'task',
+    difficulty: 'easy',
     x: 200,
     y: 100,
-    desc: 'Решите задачу на поиск и отсортируйте массив, затем выполните 20 отжиманий',
+    desc: 'Поиск и сортировка массива',
+    letter: 'A',
+    exercise: '20 отжиманий',
   },
   {
-    name: 'Зона 2: Структуры данных ↔ Приседания',
-    type: 'task' as const,
-    difficulty: 'easy' as const,
+    name: 'Задача B: Структуры данных',
+    type: 'task',
+    difficulty: 'easy',
     x: 500,
     y: 80,
-    desc: 'Реализуйте стек или очередь, затем сделайте 30 приседаний',
+    desc: 'Реализуйте стек или очередь',
+    letter: 'B',
+    exercise: '30 приседаний',
   },
   {
-    name: 'Зона 3: Графы ↔ Планка',
-    type: 'task' as const,
-    difficulty: 'medium' as const,
+    name: 'Задача C: Графы',
+    type: 'task',
+    difficulty: 'medium',
     x: 800,
     y: 150,
-    desc: 'Найдите кратчайший путь в графе и удерживайте планку 60 секунд',
+    desc: 'Кратчайший путь в графе',
+    letter: 'C',
+    exercise: 'Планка 60 секунд',
   },
   {
-    name: 'Зона 4: Динамика ↔ Прыжки',
-    type: 'task' as const,
-    difficulty: 'hard' as const,
+    name: 'Задача D: Динамика',
+    type: 'task',
+    difficulty: 'hard',
     x: 950,
     y: 350,
-    desc: 'Решите задачу DP и выполните 50 прыжков',
+    desc: 'Задача на динамическое программирование',
+    letter: 'D',
+    exercise: '50 прыжков',
   },
   {
-    name: 'Зона 5: Строки ↔ Берпи',
-    type: 'task' as const,
-    difficulty: 'medium' as const,
+    name: 'Задача E: Строки',
+    type: 'task',
+    difficulty: 'medium',
     x: 850,
     y: 550,
-    desc: 'Обработайте строки и сделайте 15 берпи',
+    desc: 'Обработка строк и подстрок',
+    letter: 'E',
+    exercise: '15 берпи',
   },
   {
-    name: 'Зона 6: Деревья ↔ Выпады',
-    type: 'task' as const,
-    difficulty: 'hard' as const,
+    name: 'Задача F: Деревья',
+    type: 'task',
+    difficulty: 'hard',
     x: 550,
     y: 600,
-    desc: 'Обойдите дерево и выполните 20 выпадов на каждую ногу',
+    desc: 'Обход и модификация дерева',
+    letter: 'F',
+    exercise: '20 выпадов на каждую ногу',
   },
   {
-    name: 'Зона 7: Математика ↔ Скручивания',
-    type: 'task' as const,
-    difficulty: 'medium' as const,
+    name: 'Задача G: Математика',
+    type: 'task',
+    difficulty: 'medium',
     x: 250,
     y: 550,
-    desc: 'Решите математическую задачу и сделайте 40 скручиваний',
+    desc: 'Математическая задача',
+    letter: 'G',
+    exercise: '40 скручиваний',
   },
   {
-    name: 'Зона 8: Greedy ↔ Бег',
-    type: 'task' as const,
-    difficulty: 'easy' as const,
+    name: 'Задача H: Greedy',
+    type: 'task',
+    difficulty: 'easy',
     x: 50,
     y: 400,
-    desc: 'Примените жадный алгоритм и пробегите 400м',
+    desc: 'Жадный алгоритм',
+    letter: 'H',
+    exercise: 'Бег 400м',
   },
   {
-    name: 'Зона 9: Комбинаторика ↔ Растяжка',
-    type: 'task' as const,
-    difficulty: 'medium' as const,
+    name: 'Задача I: Комбинаторика',
+    type: 'task',
+    difficulty: 'medium',
     x: 100,
     y: 250,
-    desc: 'Посчитайте комбинации и сделайте растяжку 5 минут',
-  },
-  {
-    name: 'Зона 10: Оптимизация ↔ Кардио',
-    type: 'task' as const,
-    difficulty: 'hard' as const,
-    x: 400,
-    y: 350,
-    desc: 'Оптимизируйте решение и выполните кардио-сет',
+    desc: 'Комбинаторная задача',
+    letter: 'I',
+    exercise: 'Растяжка 5 минут',
   },
   {
     name: 'Side Quest: Бонус',
@@ -250,6 +271,8 @@ for (let i = 0; i < moscowZones.length; i++) {
       type: z.type,
       description: z.desc,
       difficulty: z.difficulty ?? null,
+      problemLetter: z.letter ?? null,
+      exercise: z.exercise ?? null,
       positionX: z.x,
       positionY: z.y,
       sizeWidth: z.w ?? 140,
@@ -260,37 +283,70 @@ for (let i = 0; i < moscowZones.length; i++) {
     .run();
 }
 
-// ── Zones (Kazan — no map, just tasks) ──
+// ── Zones (Kazan — no map, 9 tasks A-I with exercises) ──
 const kazanZones = [
   {
-    name: 'Задача A: Сортировка ↔ Планка',
-    type: 'task' as const,
+    letter: 'A',
+    name: 'Сортировка',
     difficulty: 'easy' as const,
-    desc: 'Реализуйте быструю сортировку и удерживайте планку 45 секунд',
+    desc: 'Реализуйте быструю сортировку',
+    exercise: 'Планка 45 секунд',
   },
   {
-    name: 'Задача B: BFS ↔ Скакалка',
-    type: 'task' as const,
+    letter: 'B',
+    name: 'BFS',
+    difficulty: 'easy' as const,
+    desc: 'Обход графа в ширину',
+    exercise: '100 прыжков на скакалке',
+  },
+  {
+    letter: 'C',
+    name: 'Динамическое программирование',
     difficulty: 'medium' as const,
-    desc: 'Обход графа в ширину + 100 прыжков на скакалке',
+    desc: 'Задача на DP',
+    exercise: '10 берпи',
   },
   {
-    name: 'Задача C: DP ↔ Берпи',
-    type: 'task' as const,
+    letter: 'D',
+    name: 'Строки',
+    difficulty: 'medium' as const,
+    desc: 'Обработка строк и подстрок',
+    exercise: '25 отжиманий',
+  },
+  {
+    letter: 'E',
+    name: 'Математика',
+    difficulty: 'medium' as const,
+    desc: 'Математическая задача',
+    exercise: '30 приседаний',
+  },
+  {
+    letter: 'F',
+    name: 'Графы',
     difficulty: 'hard' as const,
-    desc: 'Динамическое программирование + 10 берпи',
+    desc: 'Кратчайшие пути в графе',
+    exercise: 'Бег 400м',
   },
   {
-    name: 'Задача D: Строки ↔ Отжимания',
-    type: 'task' as const,
-    difficulty: 'medium' as const,
-    desc: 'Обработка строк + 25 отжиманий',
+    letter: 'G',
+    name: 'Деревья',
+    difficulty: 'hard' as const,
+    desc: 'Обход и модификация дерева',
+    exercise: '20 выпадов на каждую ногу',
   },
   {
-    name: 'Задача E: Математика ↔ Приседания',
-    type: 'task' as const,
-    difficulty: 'easy' as const,
-    desc: 'Математическая задача + 30 приседаний',
+    letter: 'H',
+    name: 'Комбинаторика',
+    difficulty: 'hard' as const,
+    desc: 'Комбинаторная задача',
+    exercise: '40 скручиваний',
+  },
+  {
+    letter: 'I',
+    name: 'Оптимизация',
+    difficulty: 'hard' as const,
+    desc: 'Оптимизируйте решение',
+    exercise: 'Кардио-сет 5 минут',
   },
 ];
 
@@ -300,10 +356,12 @@ for (let i = 0; i < kazanZones.length; i++) {
     .values({
       id: nanoid(),
       cityId: kazanId,
-      name: z.name,
-      type: z.type,
+      name: `Задача ${z.letter}: ${z.name}`,
+      type: 'task',
       description: z.desc,
       difficulty: z.difficulty,
+      problemLetter: z.letter,
+      exercise: z.exercise,
       positionX: 0,
       positionY: 0,
       sizeWidth: 140,
@@ -350,32 +408,81 @@ for (const a of announceData) {
     .run();
 }
 
-// ── Leaderboard mock data ──
-const scores = [
-  { login: 'team-msk-1', score: 850, penalty: 45, solved: 8 },
-  { login: 'team-msk-2', score: 720, penalty: 60, solved: 7 },
-  { login: 'team-msk-3', score: 680, penalty: 55, solved: 7 },
-  { login: 'team-msk-4', score: 620, penalty: 70, solved: 6 },
-  { login: 'demo', score: 580, penalty: 80, solved: 6 },
-  { login: 'team-msk-5', score: 540, penalty: 65, solved: 5 },
-  { login: 'team-kzn-1', score: 600, penalty: 50, solved: 5 },
-  { login: 'team-kzn-2', score: 450, penalty: 40, solved: 4 },
-  { login: 'team-kzn-3', score: 300, penalty: 30, solved: 3 },
+// ── Leaderboard mock data (9 problems A-I, 100 pts each) ──
+const PROBLEMS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
+
+function genProblems(
+  solvedCount: number,
+): Record<
+  string,
+  { score: number; penalty: number; attempts: number; solved: boolean }
+> {
+  const result: Record<
+    string,
+    { score: number; penalty: number; attempts: number; solved: boolean }
+  > = {};
+  // Solve first N problems (easier ones first)
+  for (let i = 0; i < PROBLEMS.length; i++) {
+    const p = PROBLEMS[i];
+    if (i < solvedCount) {
+      const attempts = 1 + Math.floor(Math.random() * 3); // 1-3 attempts
+      const penalty = (attempts - 1) * 20; // 20 min per wrong attempt
+      result[p] = { score: 100, penalty, attempts, solved: true };
+    } else if (Math.random() < 0.3) {
+      // Some unsolved attempts
+      const attempts = 1 + Math.floor(Math.random() * 2);
+      result[p] = { score: 0, penalty: 0, attempts, solved: false };
+    }
+  }
+  return result;
+}
+
+function computeFromProblems(
+  probs: Record<
+    string,
+    { score: number; penalty: number; attempts: number; solved: boolean }
+  >,
+) {
+  let score = 0,
+    penalty = 0,
+    solved = 0;
+  for (const p of Object.values(probs)) {
+    if (p.solved) {
+      score += p.score;
+      penalty += p.penalty;
+      solved++;
+    }
+  }
+  return { score, penalty, solved };
+}
+
+const teamScores: { login: string; solvedCount: number }[] = [
+  { login: 'team-msk-1', solvedCount: 8 },
+  { login: 'team-msk-2', solvedCount: 7 },
+  { login: 'team-msk-3', solvedCount: 7 },
+  { login: 'team-msk-4', solvedCount: 6 },
+  { login: 'demo', solvedCount: 5 },
+  { login: 'team-msk-5', solvedCount: 4 },
+  { login: 'team-kzn-1', solvedCount: 6 },
+  { login: 'team-kzn-2', solvedCount: 4 },
+  { login: 'team-kzn-3', solvedCount: 3 },
 ];
 
-for (const s of scores) {
+for (const s of teamScores) {
   const userId = teamIds[s.login];
   if (!userId) continue;
-  // Determine city
   const user = db.select().from(users).where(eq(users.id, userId)).get()!;
+  const problems = genProblems(s.solvedCount);
+  const { score, penalty, solved } = computeFromProblems(problems);
   db.insert(leaderboardCache)
     .values({
       id: nanoid(),
       cityId: user.cityId!,
       userId,
-      score: s.score,
-      penalty: s.penalty,
-      solved: s.solved,
+      score,
+      penalty,
+      solved,
+      problems: JSON.stringify(problems),
       updatedAt: now,
     })
     .run();

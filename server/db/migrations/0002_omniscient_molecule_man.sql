@@ -1,0 +1,1 @@
+ALTER TABLE `leaderboard_cache` ADD `problems` text;

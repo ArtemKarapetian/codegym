@@ -36,6 +36,7 @@ describe('API Integration Tests', () => {
     for (const t of [
       'leaderboard_cache',
       'team_progress',
+      'announcement_reads',
       'announcements',
       'zones',
       'users',

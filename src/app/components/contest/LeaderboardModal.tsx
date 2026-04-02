@@ -8,16 +8,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/app/components/ui/dialog';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/app/components/ui/table';
 import { api } from '@/lib/api';
-import type { TeamScore } from '@shared/types';
+import type { TeamScore, ProblemResult } from '@shared/types';
+
+const PROBLEMS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
 
 interface LeaderboardModalProps {
   isOpen: boolean;
@@ -39,8 +33,8 @@ export function LeaderboardModal({
     if (!isOpen) return;
     api
       .get<TeamScore[]>(`/api/cities/${cityId}/leaderboard`)
-      .then(setLeaderboard)
-      .catch(console.error);
+      .then((data) => setLeaderboard(data))
+      .catch((err) => console.error('Leaderboard error:', err));
   }, [isOpen, cityId]);
 
   const filteredLeaderboard = leaderboard.filter((team) =>
@@ -60,9 +54,23 @@ export function LeaderboardModal({
     }
   };
 
+  const renderProblem = (p: ProblemResult | undefined) => {
+    if (!p) return <span className="text-gray-300">—</span>;
+    if (p.solved) {
+      return (
+        <span className="font-mono text-xs font-bold text-green-700">
+          +{p.attempts === 1 ? '' : p.attempts - 1}
+        </span>
+      );
+    }
+    return (
+      <span className="font-mono text-xs text-red-400">-{p.attempts}</span>
+    );
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-5xl max-h-[85vh] flex flex-col overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl flex items-center gap-2">
             <Trophy className="w-6 h-6 text-[var(--tinkoff-yellow)]" />
@@ -83,56 +91,61 @@ export function LeaderboardModal({
           />
         </div>
 
-        <div className="flex-1 overflow-y-auto border border-[var(--tinkoff-border)] rounded-lg">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-[var(--tinkoff-gray)]">
-                <TableHead className="w-16">Место</TableHead>
-                <TableHead>Команда</TableHead>
-                <TableHead className="text-right w-24">Баллы</TableHead>
-                <TableHead className="text-right w-24">Штраф</TableHead>
-                <TableHead className="text-right w-24">Решено</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredLeaderboard.map((team) => (
-                <TableRow
-                  key={team.rank}
-                  className={
-                    team.isCurrentTeam || team.teamName === currentTeamName
-                      ? 'bg-[var(--tinkoff-yellow)]/20 font-medium'
-                      : ''
-                  }
-                >
-                  <TableCell className="font-medium">
-                    <div className="flex items-center justify-center">
+        <div className="flex-1 overflow-auto border border-[var(--tinkoff-border)] rounded-lg">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-[var(--tinkoff-gray)] border-b">
+                <th className="px-3 py-2 text-center w-12">#</th>
+                <th className="px-3 py-2 text-left">Команда</th>
+                <th className="px-2 py-2 text-center w-12">Σ</th>
+                <th className="px-2 py-2 text-center w-14">Штраф</th>
+                {PROBLEMS.map((p) => (
+                  <th key={p} className="px-1 py-2 text-center w-10 font-bold">
+                    {p}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredLeaderboard.map((team) => {
+                const isMe =
+                  team.isCurrentTeam || team.teamName === currentTeamName;
+                return (
+                  <tr
+                    key={team.rank}
+                    className={`border-b border-gray-100 ${isMe ? 'bg-[var(--tinkoff-yellow)]/20' : ''}`}
+                  >
+                    <td className="px-3 py-2 text-center">
                       {getRankIcon(team.rank)}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      {team.teamName}
-                      {(team.isCurrentTeam ||
-                        team.teamName === currentTeamName) && (
-                        <span className="text-xs bg-[var(--tinkoff-yellow)] px-2 py-0.5 rounded">
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className={isMe ? 'font-semibold' : ''}>
+                        {team.teamName}
+                      </span>
+                      {isMe && (
+                        <span className="text-xs bg-[var(--tinkoff-yellow)] px-1.5 py-0.5 rounded ml-2">
                           Вы
                         </span>
                       )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right font-mono">
-                    {team.score}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-red-600">
-                    +{team.penalty}
-                  </TableCell>
-                  <TableCell className="text-right font-mono">
-                    {team.solved}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                    </td>
+                    <td className="px-2 py-2 text-center font-mono font-bold">
+                      {team.solved}
+                    </td>
+                    <td className="px-2 py-2 text-center font-mono text-red-600 text-xs">
+                      {team.penalty}
+                    </td>
+                    {PROBLEMS.map((p) => (
+                      <td key={p} className="px-1 py-2 text-center">
+                        {renderProblem(
+                          team.problems?.[p] as ProblemResult | undefined,
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
 
         {filteredLeaderboard.length === 0 && (
@@ -141,20 +154,6 @@ export function LeaderboardModal({
             <p className="text-lg">Команда не найдена</p>
           </div>
         )}
-
-        <div className="bg-[var(--tinkoff-gray)] rounded-lg p-4 text-sm space-y-1">
-          <p className="font-medium mb-2">Пояснение:</p>
-          <p className="text-gray-600">
-            <strong>Баллы:</strong> Сумма баллов за решённые задачи
-          </p>
-          <p className="text-gray-600">
-            <strong>Штраф:</strong> Дополнительное время за неверные попытки
-            (минуты)
-          </p>
-          <p className="text-gray-600">
-            <strong>Решено:</strong> Количество успешно решённых задач
-          </p>
-        </div>
       </DialogContent>
     </Dialog>
   );

@@ -1,18 +1,36 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { Trophy, Medal } from 'lucide-react';
-import type { TeamScore } from '@shared/types';
+import { Trophy, Medal, Maximize, Minimize } from 'lucide-react';
+import type { TeamScore, ProblemResult } from '@shared/types';
+
+const PROBLEMS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
 
 export function PublicLeaderboard() {
   const { cityId } = useParams<{ cityId: string }>();
   const [leaderboard, setLeaderboard] = useState<TeamScore[]>([]);
+  const [lastUpdate, setLastUpdate] = useState('');
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [cursorHidden, setCursorHidden] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const cursorTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  // Fetch leaderboard
   useEffect(() => {
     if (!cityId) return;
 
     const fetchLeaderboard = () => {
       fetch(`/api/public/cities/${cityId}/leaderboard`)
         .then((r) => r.json())
-        .then(setLeaderboard)
+        .then((data) => {
+          setLeaderboard(data);
+          setLastUpdate(
+            new Date().toLocaleTimeString('ru-RU', {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+            }),
+          );
+        })
         .catch(console.error);
     };
 
@@ -21,82 +39,215 @@ export function PublicLeaderboard() {
     return () => clearInterval(interval);
   }, [cityId]);
 
-  const getRankIcon = (rank: number) => {
+  // Track fullscreen state
+  useEffect(() => {
+    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, []);
+
+  // Auto-hide cursor after 3s of inactivity
+  const resetCursorTimer = useCallback(() => {
+    setCursorHidden(false);
+    clearTimeout(cursorTimer.current);
+    cursorTimer.current = setTimeout(() => setCursorHidden(true), 3000);
+  }, []);
+
+  useEffect(() => {
+    cursorTimer.current = setTimeout(() => setCursorHidden(true), 3000);
+    window.addEventListener('mousemove', resetCursorTimer);
+    return () => {
+      window.removeEventListener('mousemove', resetCursorTimer);
+      clearTimeout(cursorTimer.current);
+    };
+  }, [resetCursorTimer]);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen().catch(console.error);
+    } else {
+      document.exitFullscreen().catch(console.error);
+    }
+  };
+
+  const getRankDisplay = (rank: number) => {
     switch (rank) {
       case 1:
-        return <Medal className="w-8 h-8 text-yellow-500" />;
+        return <Medal className="w-6 h-6 text-yellow-500" />;
       case 2:
-        return <Medal className="w-8 h-8 text-gray-400" />;
+        return <Medal className="w-6 h-6 text-gray-400" />;
       case 3:
-        return <Medal className="w-8 h-8 text-amber-700" />;
+        return <Medal className="w-6 h-6 text-amber-600" />;
       default:
         return (
-          <span className="text-2xl font-bold text-gray-400">#{rank}</span>
+          <span className="font-mono font-bold text-gray-500">{rank}</span>
         );
     }
   };
 
+  const renderProblemCell = (problem: ProblemResult | undefined) => {
+    if (!problem) {
+      return <td className="px-2 py-3 text-center text-gray-300">—</td>;
+    }
+
+    if (problem.solved) {
+      return (
+        <td className="px-2 py-3 text-center">
+          <div className="inline-flex flex-col items-center">
+            <span className="font-mono font-bold text-green-700">
+              +{problem.attempts === 1 ? '' : problem.attempts - 1}
+            </span>
+            {problem.penalty > 0 && (
+              <span className="text-[10px] text-gray-400 font-mono">
+                {problem.penalty}
+              </span>
+            )}
+          </div>
+        </td>
+      );
+    }
+
+    return (
+      <td className="px-2 py-3 text-center">
+        <span className="font-mono text-red-400">-{problem.attempts}</span>
+      </td>
+    );
+  };
+
   return (
-    <div className="min-h-screen bg-black text-white p-8">
+    <div
+      ref={containerRef}
+      className={`min-h-screen bg-white flex flex-col ${cursorHidden ? 'cursor-none' : ''}`}
+    >
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="bg-[var(--tinkoff-yellow)] px-8 py-5 shrink-0">
+        <div className="flex items-center justify-between max-w-7xl mx-auto">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-black rounded-xl flex items-center justify-center">
+              <span className="text-[var(--tinkoff-yellow)] font-bold text-lg">
+                CG
+              </span>
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-black">
+                Code Gym × T-Bank
+              </h1>
+              <p className="text-sm text-black/60">Лидерборд</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Trophy className="w-10 h-10 text-black/30" />
+            <button
+              onClick={toggleFullscreen}
+              className="p-2 rounded-lg bg-black/10 hover:bg-black/20 transition-colors"
+              title={isFullscreen ? 'Выйти из полноэкранного' : 'Полный экран'}
+            >
+              {isFullscreen ? (
+                <Minimize className="w-5 h-5" />
+              ) : (
+                <Maximize className="w-5 h-5" />
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="flex-1 max-w-7xl mx-auto px-4 py-6 w-full">
+        <div className="overflow-x-auto rounded-xl border border-gray-200">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="px-4 py-3 text-center w-14 font-semibold text-gray-600">
+                  #
+                </th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">
+                  Команда
+                </th>
+                <th className="px-3 py-3 text-center w-16 font-semibold text-gray-600">
+                  Σ
+                </th>
+                <th className="px-3 py-3 text-center w-16 font-semibold text-gray-600">
+                  Штраф
+                </th>
+                {PROBLEMS.map((p) => (
+                  <th
+                    key={p}
+                    className="px-2 py-3 text-center w-14 font-bold text-gray-700"
+                  >
+                    {p}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {leaderboard.map((team) => (
+                <tr
+                  key={team.rank}
+                  className={`border-b border-gray-100 transition-colors ${
+                    team.rank <= 3
+                      ? 'bg-[var(--tinkoff-yellow)]/10'
+                      : team.rank % 2 === 0
+                        ? 'bg-gray-50/50'
+                        : 'bg-white'
+                  }`}
+                >
+                  <td className="px-4 py-3 text-center">
+                    {getRankDisplay(team.rank)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`font-semibold ${team.rank <= 3 ? 'text-black' : 'text-gray-800'}`}
+                    >
+                      {team.teamName}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3 text-center">
+                    <span className="font-mono font-bold text-lg">
+                      {team.solved}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3 text-center">
+                    <span className="font-mono text-red-600">
+                      {team.penalty}
+                    </span>
+                  </td>
+                  {PROBLEMS.map((p) =>
+                    renderProblemCell(
+                      team.problems?.[p] as ProblemResult | undefined,
+                    ),
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {leaderboard.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-24 text-gray-400">
+            <Trophy className="w-16 h-16 mb-4 opacity-20" />
+            <p className="text-lg">Загрузка...</p>
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="shrink-0 bg-gray-50 border-t border-gray-200 px-8 py-2 flex items-center justify-between text-xs text-gray-400">
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 bg-[var(--tinkoff-yellow)] rounded-xl flex items-center justify-center">
-            <span className="text-black font-bold text-xl">CG</span>
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold">Code Gym × T-Bank</h1>
-            <p className="text-gray-400">Лидерборд</p>
-          </div>
+          <span>
+            <span className="font-mono font-bold text-green-700">+</span> —
+            решено
+          </span>
+          <span>
+            <span className="font-mono font-bold text-green-700">+2</span> —
+            решено с 2 неуд. попытками
+          </span>
+          <span>
+            <span className="font-mono text-red-400">-1</span> — не решено, 1
+            попытка
+          </span>
         </div>
-        <Trophy className="w-12 h-12 text-[var(--tinkoff-yellow)]" />
-      </div>
-
-      {/* Leaderboard */}
-      <div className="space-y-3">
-        {leaderboard.map((team) => (
-          <div
-            key={team.rank}
-            className={`flex items-center gap-6 p-5 rounded-2xl transition-all ${
-              team.rank <= 3
-                ? 'bg-gradient-to-r from-[var(--tinkoff-yellow)]/20 to-transparent border border-[var(--tinkoff-yellow)]/30'
-                : 'bg-white/5 border border-white/10'
-            }`}
-          >
-            <div className="w-16 flex justify-center">
-              {getRankIcon(team.rank)}
-            </div>
-            <div className="flex-1">
-              <p className="text-xl font-semibold">{team.teamName}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-2xl font-bold text-[var(--tinkoff-yellow)]">
-                {team.score}
-              </p>
-              <p className="text-xs text-gray-400">баллов</p>
-            </div>
-            <div className="text-right w-20">
-              <p className="text-lg font-mono text-red-400">+{team.penalty}</p>
-              <p className="text-xs text-gray-400">штраф</p>
-            </div>
-            <div className="text-right w-20">
-              <p className="text-lg font-mono">{team.solved}</p>
-              <p className="text-xs text-gray-400">решено</p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {leaderboard.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-24 text-gray-500">
-          <Trophy className="w-20 h-20 mb-4 opacity-20" />
-          <p className="text-xl">Загрузка...</p>
-        </div>
-      )}
-
-      {/* Auto-refresh indicator */}
-      <div className="fixed bottom-4 right-4 text-xs text-gray-600">
-        Обновляется каждые 10 секунд
+        <span>Обновлено: {lastUpdate || '...'}</span>
       </div>
     </div>
   );
