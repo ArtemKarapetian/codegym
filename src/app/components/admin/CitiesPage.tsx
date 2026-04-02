@@ -1,14 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  Plus,
-  MapPin,
-  Clock,
-  Map,
-  List,
-  Trash2,
-  RefreshCw,
-} from 'lucide-react';
+import { Plus, MapPin, Clock, Trophy, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
@@ -36,10 +28,22 @@ export function CitiesPage() {
     fetchCities();
   }, []);
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Удалить город и все связанные данные?')) return;
-    await api.delete(`/api/cities/${id}`);
-    fetchCities();
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30000);
+    return () => clearInterval(t);
+  }, []);
+
+  const getCityTime = (tz: string) => {
+    try {
+      return now.toLocaleTimeString('ru-RU', {
+        timeZone: tz,
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return '';
+    }
   };
 
   const statusLabels: Record<string, { label: string; color: string }> = {
@@ -61,7 +65,6 @@ export function CitiesPage() {
               try {
                 const res = await api.post<{
                   synced: number;
-                  created: number;
                   skippedNoCity: string[];
                   error?: string;
                 }>('/api/admin/sync-sheets', {});
@@ -70,7 +73,6 @@ export function CitiesPage() {
                 } else {
                   toast.success(
                     `Синхронизировано: ${res.synced} команд` +
-                      (res.created ? `, создано: ${res.created}` : '') +
                       (res.skippedNoCity.length
                         ? `. Города не найдены: ${res.skippedNoCity.join(', ')}`
                         : ''),
@@ -114,15 +116,7 @@ export function CitiesPage() {
                   <div className="flex items-center gap-3 text-sm text-gray-500 mt-1">
                     <span className="flex items-center gap-1">
                       <Clock className="w-3 h-3" />
-                      {city.timezone}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      {city.mapEnabled ? (
-                        <Map className="w-3 h-3" />
-                      ) : (
-                        <List className="w-3 h-3" />
-                      )}
-                      {city.mapEnabled ? 'Карта' : 'Список'}
+                      {getCityTime(city.timezone)}
                     </span>
                     <span>{city.durationMin} мин</span>
                   </div>
@@ -135,10 +129,11 @@ export function CitiesPage() {
                   size="icon"
                   onClick={(e) => {
                     e.preventDefault();
-                    handleDelete(city.id);
+                    window.open(`/public/leaderboard/${city.id}`, '_blank');
                   }}
+                  title="Открыть лидерборд"
                 >
-                  <Trash2 className="w-4 h-4 text-red-400" />
+                  <Trophy className="w-4 h-4 text-[var(--tinkoff-yellow)]" />
                 </Button>
               </div>
             </Link>

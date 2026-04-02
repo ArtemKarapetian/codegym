@@ -2,7 +2,8 @@ import { Hono } from 'hono';
 import { eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { db } from '../db/client';
-import { cities, leaderboardCache, users } from '../db/schema';
+import { cities } from '../db/schema';
+import { getCityStats } from '../services/sheets-sync';
 import { authMiddleware, adminMiddleware } from '../middleware/auth';
 import { createCitySchema, updateCitySchema } from '@shared/validation';
 import type { JwtPayload } from '../middleware/auth';
@@ -28,41 +29,7 @@ function rowToCity(row: typeof cities.$inferSelect): City {
 router.get('/public', (c) => {
   const rows = db.select().from(cities).all();
 
-  // Get leaderboard stats per city in one query
-  const lbRows = db
-    .select({
-      cityId: leaderboardCache.cityId,
-      userId: leaderboardCache.userId,
-      solved: leaderboardCache.solved,
-      teamName: users.teamName,
-    })
-    .from(leaderboardCache)
-    .innerJoin(users, eq(leaderboardCache.userId, users.id))
-    .all();
-
-  // Aggregate per city
-  const statsMap = new Map<
-    string,
-    {
-      teams: number;
-      totalSolved: number;
-      maxSolved: number;
-      topTeam: string | null;
-    }
-  >();
-  for (const r of lbRows) {
-    let s = statsMap.get(r.cityId);
-    if (!s) {
-      s = { teams: 0, totalSolved: 0, maxSolved: 0, topTeam: null };
-      statsMap.set(r.cityId, s);
-    }
-    s.teams++;
-    s.totalSolved += r.solved;
-    if (r.solved > s.maxSolved) {
-      s.maxSolved = r.solved;
-      s.topTeam = r.teamName;
-    }
-  }
+  const statsMap = getCityStats();
 
   const result = rows.map((row) => {
     const city = rowToCity(row);

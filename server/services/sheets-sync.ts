@@ -1,7 +1,6 @@
-import { eq, and } from 'drizzle-orm';
-import { nanoid } from 'nanoid';
 import { db } from '../db/client';
-import { cities, users, leaderboardCache } from '../db/schema';
+import { cities } from '../db/schema';
+import type { TeamScore, ProblemResult } from '@shared/types';
 
 // ── CSV parsing ──
 
@@ -39,7 +38,6 @@ function parseCSV(raw: string): string[][] {
       }
     }
   }
-  // last row
   row.push(current.trim());
   if (row.some((c) => c !== '')) rows.push(row);
 
@@ -56,16 +54,16 @@ function isTruthy(val: string): boolean {
 interface TeamRow {
   city: string;
   team: string;
-  /** boolean per column index 1..9 */
   columns: boolean[];
 }
+
+const PROBLEM_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
 
 function parseSheet(csv: string): TeamRow[] {
   const rows = parseCSV(csv);
   if (rows.length < 2) return [];
 
-  // header row: №, Город, Команда, Col1, Col2, ..., Col9, [Итого, ...]
-  // data columns start at index 3
+  // header: №, Город, Команда, Col1..Col9, [Итого, ...]
   const results: TeamRow[] = [];
   for (let i = 1; i < rows.length; i++) {
     const r = rows[i];
@@ -82,138 +80,116 @@ function parseSheet(csv: string): TeamRow[] {
   return results;
 }
 
-// ── Scoring ──
+// ── In-memory leaderboard store ──
 
-const PROBLEM_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
+// cityId -> TeamScore[]
+const leaderboardStore = new Map<string, TeamScore[]>();
 
-interface TeamScore {
-  city: string;
-  team: string;
-  tasks: boolean[];
-  exercises: boolean[];
-  /** effective solved = min(tasksDone, exercisesDone + 1) */
-  scored: number;
+export function getLeaderboardForCity(cityId: string): TeamScore[] {
+  return leaderboardStore.get(cityId) ?? [];
 }
 
-function computeScores(
-  taskRows: TeamRow[],
-  exerciseRows: TeamRow[],
-): TeamScore[] {
-  // Build lookup: city+team -> exercises
-  const exerciseMap = new Map<string, boolean[]>();
-  for (const row of exerciseRows) {
-    exerciseMap.set(`${row.city}||${row.team}`, row.columns);
-  }
-
-  const results: TeamScore[] = [];
-  for (const taskRow of taskRows) {
-    const key = `${taskRow.city}||${taskRow.team}`;
-    const exercises = exerciseMap.get(key) ?? Array(9).fill(false);
-    const tasksDone = taskRow.columns.filter(Boolean).length;
-    const exercisesDone = exercises.filter(Boolean).length;
-    // After the last task, exercise not required → +1
-    const scored = Math.min(tasksDone, exercisesDone + 1);
-
-    results.push({
-      city: taskRow.city,
-      team: taskRow.team,
-      tasks: taskRow.columns,
-      exercises,
-      scored,
+export function getCityStats() {
+  const stats = new Map<
+    string,
+    {
+      teams: number;
+      totalSolved: number;
+      maxSolved: number;
+      topTeam: string | null;
+    }
+  >();
+  for (const [cityId, teams] of leaderboardStore) {
+    let maxSolved = 0;
+    let topTeam: string | null = null;
+    let totalSolved = 0;
+    for (const t of teams) {
+      totalSolved += t.solved;
+      if (t.solved > maxSolved) {
+        maxSolved = t.solved;
+        topTeam = t.teamName;
+      }
+    }
+    stats.set(cityId, {
+      teams: teams.length,
+      totalSolved,
+      maxSolved,
+      topTeam,
     });
   }
-
-  return results;
+  return stats;
 }
 
-// ── Sync to DB ──
+// ── Sync ──
 
 export interface SyncResult {
   synced: number;
   skippedNoCity: string[];
-  skippedNoTeam: string[];
-  created: number;
+}
+
+async function fetchWithRetry(url: string, retries = 3): Promise<string> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`Fetch failed: ${r.status}`);
+      return await r.text();
+    } catch (err) {
+      if (i === retries - 1) throw err;
+      await new Promise((resolve) => setTimeout(resolve, 2000 * (i + 1)));
+    }
+  }
+  throw new Error('Unreachable');
 }
 
 export async function syncFromSheets(
   tasksUrl: string,
   exercisesUrl: string,
 ): Promise<SyncResult> {
-  // Fetch both CSVs
   const [tasksCsv, exercisesCsv] = await Promise.all([
-    fetch(tasksUrl).then((r) => {
-      if (!r.ok) throw new Error(`Tasks sheet fetch failed: ${r.status}`);
-      return r.text();
-    }),
-    fetch(exercisesUrl).then((r) => {
-      if (!r.ok) throw new Error(`Exercises sheet fetch failed: ${r.status}`);
-      return r.text();
-    }),
+    fetchWithRetry(tasksUrl),
+    fetchWithRetry(exercisesUrl),
   ]);
 
   const taskRows = parseSheet(tasksCsv);
   const exerciseRows = parseSheet(exercisesCsv);
-  const scores = computeScores(taskRows, exerciseRows);
 
-  // Load cities from DB, build name -> id map
+  // Build exercise lookup: city+team -> columns
+  const exerciseMap = new Map<string, boolean[]>();
+  for (const row of exerciseRows) {
+    exerciseMap.set(`${row.city}||${row.team}`, row.columns);
+  }
+
+  // Build city name -> id map from DB
   const allCities = db.select().from(cities).all();
   const cityMap = new Map<string, string>();
   for (const c of allCities) {
     cityMap.set(c.name.toLowerCase(), c.id);
   }
 
-  const result: SyncResult = {
-    synced: 0,
-    skippedNoCity: [],
-    skippedNoTeam: [],
-    created: 0,
-  };
+  // Group scores by cityId
+  const byCityId = new Map<string, TeamScore[]>();
+  const result: SyncResult = { synced: 0, skippedNoCity: [] };
 
-  const now = new Date().toISOString();
-
-  for (const score of scores) {
-    const cityId = cityMap.get(score.city.toLowerCase());
+  for (const taskRow of taskRows) {
+    const cityId = cityMap.get(taskRow.city.toLowerCase());
     if (!cityId) {
-      if (!result.skippedNoCity.includes(score.city)) {
-        result.skippedNoCity.push(score.city);
+      if (!result.skippedNoCity.includes(taskRow.city)) {
+        result.skippedNoCity.push(taskRow.city);
       }
       continue;
     }
 
-    // Find team user by teamName + cityId
-    let user = db
-      .select()
-      .from(users)
-      .where(and(eq(users.teamName, score.team), eq(users.cityId, cityId)))
-      .get();
+    const exercises =
+      exerciseMap.get(`${taskRow.city}||${taskRow.team}`) ??
+      Array(9).fill(false);
+    const tasksDone = taskRow.columns.filter(Boolean).length;
+    const exercisesDone = exercises.filter(Boolean).length;
+    const scored = Math.min(tasksDone, exercisesDone + 1);
 
-    // Auto-create team if not found
-    if (!user) {
-      const userId = nanoid();
-      const login = `team-${nanoid(8)}`;
-      // Use bcryptjs to hash a random password (teams log in differently)
-      db.insert(users)
-        .values({
-          id: userId,
-          login,
-          passwordHash: '$__sheets_sync__', // placeholder, not a valid bcrypt hash
-          role: 'team',
-          teamName: score.team,
-          cityId,
-          createdAt: now,
-        })
-        .run();
-      user = db.select().from(users).where(eq(users.id, userId)).get()!;
-      result.created++;
-    }
-
-    // Build problems JSON
-    const problems: Record<
-      string,
-      { score: number; penalty: number; attempts: number; solved: boolean }
-    > = {};
+    // Build problems map
+    const problems: Record<string, ProblemResult> = {};
     for (let i = 0; i < 9; i++) {
-      if (score.tasks[i]) {
+      if (taskRow.columns[i]) {
         problems[PROBLEM_LETTERS[i]] = {
           score: 1,
           penalty: 0,
@@ -223,45 +199,24 @@ export async function syncFromSheets(
       }
     }
 
-    // Upsert leaderboard_cache
-    const existing = db
-      .select()
-      .from(leaderboardCache)
-      .where(
-        and(
-          eq(leaderboardCache.cityId, cityId),
-          eq(leaderboardCache.userId, user.id),
-        ),
-      )
-      .get();
-
-    if (existing) {
-      db.update(leaderboardCache)
-        .set({
-          score: score.scored,
-          penalty: 0,
-          solved: score.scored,
-          problems: JSON.stringify(problems),
-          updatedAt: now,
-        })
-        .where(eq(leaderboardCache.id, existing.id))
-        .run();
-    } else {
-      db.insert(leaderboardCache)
-        .values({
-          id: nanoid(),
-          cityId,
-          userId: user.id,
-          score: score.scored,
-          penalty: 0,
-          solved: score.scored,
-          problems: JSON.stringify(problems),
-          updatedAt: now,
-        })
-        .run();
-    }
+    if (!byCityId.has(cityId)) byCityId.set(cityId, []);
+    byCityId.get(cityId)!.push({
+      rank: 0, // computed below
+      teamName: taskRow.team,
+      score: scored,
+      penalty: 0,
+      solved: scored,
+      problems,
+    });
 
     result.synced++;
+  }
+
+  // Sort and assign ranks, then store
+  for (const [cityId, teams] of byCityId) {
+    teams.sort((a, b) => b.solved - a.solved || a.penalty - b.penalty);
+    teams.forEach((t, i) => (t.rank = i + 1));
+    leaderboardStore.set(cityId, teams);
   }
 
   return result;

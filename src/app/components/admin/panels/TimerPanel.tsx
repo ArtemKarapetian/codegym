@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Play, Pause, Square, RotateCcw, Clock } from 'lucide-react';
+import { Play, Pause, Square, RotateCcw, Clock, Unlock } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { toast } from 'sonner';
@@ -205,14 +205,27 @@ export function TimerPanel({ cityId }: TimerPanelProps) {
           </>
         )}
         {timer.status === 'finished' && (
-          <Button
-            onClick={() => action('start')}
-            variant="outline"
-            className="gap-2"
-          >
-            <RotateCcw className="w-4 h-4" />
-            Перезапустить
-          </Button>
+          <>
+            <Button
+              onClick={() => action('start')}
+              variant="outline"
+              className="gap-2"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Перезапустить
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-2 border-blue-300 text-blue-600 hover:bg-blue-50"
+              onClick={async () => {
+                await api.post(`/api/cities/${cityId}/leaderboard/unfreeze`);
+                toast.success('Лидерборд разморожен — результаты видны всем');
+              }}
+            >
+              <Unlock className="w-4 h-4" />
+              Разморозить лидерборд
+            </Button>
+          </>
         )}
       </div>
     </div>

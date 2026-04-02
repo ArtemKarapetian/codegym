@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { MapPin, Trophy, Calendar, Users, TrendingUp } from 'lucide-react';
+import { api } from '@/lib/api';
 import type { City } from '@shared/types';
 
 interface CityWithStats extends City {
@@ -17,8 +18,8 @@ export function CityListPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/cities/public')
-      .then((r) => r.json())
+    api
+      .get<CityWithStats[]>('/api/cities/public')
       .then(setCities)
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -91,7 +92,9 @@ export function CityListPage() {
         <div className="max-w-4xl mx-auto flex items-center gap-4">
           <img src="/logo.png" alt="Код спорта" className="h-5 shrink-0" />
           <div>
-            <p className="text-sm text-black/60">Контест-площадки</p>
+            <p className="text-sm text-black/80 font-medium">
+              Контест-площадки
+            </p>
           </div>
         </div>
       </div>
@@ -102,10 +105,10 @@ export function CityListPage() {
           <div key={dateKey} className="mb-8">
             <div className="flex items-center gap-2 mb-4">
               <Calendar className="w-5 h-5 text-gray-500" />
-              <h2 className="text-lg font-semibold text-gray-700">
+              <h2 className="text-lg font-semibold text-gray-900">
                 {formatDate(dateKey)}
               </h2>
-              <span className="text-sm text-gray-400">
+              <span className="text-sm text-gray-600">
                 ({grouped[dateKey].length}{' '}
                 {grouped[dateKey].length === 1
                   ? 'город'
@@ -141,7 +144,7 @@ export function CityListPage() {
 
                     {city.stats ? (
                       <div className="space-y-1.5 mb-2">
-                        <div className="flex items-center justify-between text-xs text-gray-500">
+                        <div className="flex items-center justify-between text-xs text-gray-700">
                           <span className="flex items-center gap-1">
                             <Users className="w-3 h-3" />
                             {city.stats.teams} команд
@@ -153,19 +156,19 @@ export function CityListPage() {
                           </span>
                         </div>
                         {city.stats.topTeam && (
-                          <div className="text-xs text-gray-400 truncate">
+                          <div className="text-xs text-gray-600 truncate">
                             <Trophy className="w-3 h-3 inline mr-1 text-[var(--tinkoff-yellow)]" />
                             {city.stats.topTeam}
                           </div>
                         )}
                       </div>
                     ) : (
-                      <div className="text-xs text-gray-300 mb-2">
+                      <div className="text-xs text-gray-500 mb-2">
                         Нет данных
                       </div>
                     )}
 
-                    <div className="flex items-center gap-1 text-xs text-gray-400 pt-2 border-t border-gray-100">
+                    <div className="flex items-center gap-1 text-xs text-gray-600 pt-2 border-t border-gray-100">
                       <Trophy className="w-3 h-3" />
                       <span>Лидерборд</span>
                     </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { Trophy, Medal, Maximize, Minimize, ArrowLeft } from 'lucide-react';
+import { useParams } from 'react-router-dom';
+import { Trophy, Medal, Maximize, Minimize } from 'lucide-react';
 import type { TeamScore, ProblemResult } from '@shared/types';
 
 const PROBLEMS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
@@ -9,6 +9,7 @@ export function PublicLeaderboard() {
   const { cityId } = useParams<{ cityId: string }>();
   const [leaderboard, setLeaderboard] = useState<TeamScore[]>([]);
   const [lastUpdate, setLastUpdate] = useState('');
+  const [frozen, setFrozen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [cursorHidden, setCursorHidden] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -20,7 +21,11 @@ export function PublicLeaderboard() {
 
     const fetchLeaderboard = () => {
       fetch(`/api/public/cities/${cityId}/leaderboard`)
-        .then((r) => r.json())
+        .then((r) => {
+          const isFrozen = r.headers.get('X-Leaderboard-Frozen') === '1';
+          setFrozen(isFrozen);
+          return r.json();
+        })
         .then((data) => {
           setLeaderboard(data);
           setLastUpdate(
@@ -117,38 +122,26 @@ export function PublicLeaderboard() {
   return (
     <div
       ref={containerRef}
-      className={`min-h-screen bg-white flex flex-col ${cursorHidden ? 'cursor-none' : ''}`}
+      className={`min-h-screen bg-[var(--tinkoff-yellow)]/10 flex flex-col ${cursorHidden ? 'cursor-none' : ''}`}
     >
       {/* Header */}
-      <div className="bg-[var(--tinkoff-yellow)] px-8 py-5 shrink-0">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <div className="flex items-center gap-4">
-            <Link
-              to="/cities"
-              className="p-2 rounded-lg bg-black/10 hover:bg-black/20 transition-colors"
-              title="Назад к городам"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-            <img src="/logo.png" alt="Код спорта" className="h-5" />
-            <div>
-              <p className="text-sm text-black/60">Лидерборд</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <Trophy className="w-10 h-10 text-black/30" />
-            <button
-              onClick={toggleFullscreen}
-              className="p-2 rounded-lg bg-black/10 hover:bg-black/20 transition-colors"
-              title={isFullscreen ? 'Выйти из полноэкранного' : 'Полный экран'}
-            >
-              {isFullscreen ? (
-                <Minimize className="w-5 h-5" />
-              ) : (
-                <Maximize className="w-5 h-5" />
-              )}
-            </button>
-          </div>
+      <div className="bg-[var(--tinkoff-yellow)] px-8 py-4 shrink-0">
+        <div className="relative flex items-center justify-between max-w-7xl mx-auto">
+          <img src="/logo.png" alt="Код спорта" className="h-5" />
+          <h1 className="absolute left-1/2 -translate-x-1/2 text-2xl font-bold text-black">
+            Лидерборд
+          </h1>
+          <button
+            onClick={toggleFullscreen}
+            className="p-2 rounded-lg hover:bg-black/10 transition-colors"
+            title={isFullscreen ? 'Выйти из полноэкранного' : 'Полный экран'}
+          >
+            {isFullscreen ? (
+              <Minimize className="w-5 h-5" />
+            ) : (
+              <Maximize className="w-5 h-5" />
+            )}
+          </button>
         </div>
       </div>
 
@@ -157,7 +150,7 @@ export function PublicLeaderboard() {
         <div className="overflow-x-auto rounded-xl border border-gray-200">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
+              <tr className="bg-[var(--tinkoff-yellow)]/20 border-b border-gray-200">
                 <th className="px-4 py-3 text-center w-14 font-semibold text-gray-600">
                   #
                 </th>
@@ -186,9 +179,9 @@ export function PublicLeaderboard() {
                   key={team.rank}
                   className={`border-b border-gray-100 transition-colors ${
                     team.rank <= 3
-                      ? 'bg-[var(--tinkoff-yellow)]/10'
+                      ? 'bg-[var(--tinkoff-yellow)]/15'
                       : team.rank % 2 === 0
-                        ? 'bg-gray-50/50'
+                        ? 'bg-[var(--tinkoff-yellow)]/5'
                         : 'bg-white'
                   }`}
                 >
@@ -247,7 +240,14 @@ export function PublicLeaderboard() {
             попытка
           </span>
         </div>
-        <span>Обновлено: {lastUpdate || '...'}</span>
+        <div className="flex items-center gap-3">
+          {frozen && (
+            <span className="text-blue-600 font-semibold">
+              Таблица заморожена
+            </span>
+          )}
+          <span>Обновлено: {lastUpdate || '...'}</span>
+        </div>
       </div>
     </div>
   );

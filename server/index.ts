@@ -19,7 +19,7 @@ async function autoSync() {
     const { tasks, exercises } = getSheetUrls();
     const result = await syncFromSheets(tasks, exercises);
     console.log(
-      `[auto-sync] synced=${result.synced} created=${result.created}` +
+      `[auto-sync] synced=${result.synced}` +
         (result.skippedNoCity.length
           ? ` skippedCities=${result.skippedNoCity.join(',')}`
           : ''),

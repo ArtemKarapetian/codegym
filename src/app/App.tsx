@@ -37,7 +37,7 @@ function RootRedirect() {
   const { user, loading } = useAuth();
 
   if (loading) return null;
-  if (!user) return <Navigate to="/cities" replace />;
+  if (!user) return <Navigate to="/login" replace />;
   if (user.role === 'admin') return <Navigate to="/admin" replace />;
   return <Navigate to="/contest" replace />;
 }
@@ -47,7 +47,14 @@ function AppRoutes() {
     <AuthProvider>
       <Routes>
         <Route path="/" element={<RootRedirect />} />
-        <Route path="/cities" element={<CityListPage />} />
+        <Route
+          path="/cities"
+          element={
+            <ProtectedRoute role="admin">
+              <CityListPage />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/login" element={<LoginPage />} />
         <Route
           path="/contest"
