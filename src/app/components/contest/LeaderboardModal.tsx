@@ -70,7 +70,7 @@ export function LeaderboardModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-[95vw] w-full max-h-[95vh] flex flex-col overflow-y-auto">
+      <DialogContent className="!max-w-[calc(100vw-2rem)] w-full max-h-[95vh] flex flex-col overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl flex items-center gap-2">
             <Trophy className="w-6 h-6 text-[var(--tinkoff-yellow)]" />
@@ -92,15 +92,15 @@ export function LeaderboardModal({
         </div>
 
         <div className="flex-1 overflow-auto border border-[var(--tinkoff-border)] rounded-lg">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm table-fixed">
             <thead>
               <tr className="bg-[var(--tinkoff-gray)] border-b">
-                <th className="px-3 py-2 text-center w-12">#</th>
-                <th className="px-3 py-2 text-left">Команда</th>
-                <th className="px-2 py-2 text-center w-12">Σ</th>
-                <th className="px-2 py-2 text-center w-14">Штраф</th>
+                <th className="px-1 py-2 text-center w-10">#</th>
+                <th className="px-2 py-2 text-left">Команда</th>
+                <th className="px-1 py-2 text-center w-10">Σ</th>
+                <th className="px-1 py-2 text-center w-12">Штраф</th>
                 {PROBLEMS.map((p) => (
-                  <th key={p} className="px-1 py-2 text-center w-10 font-bold">
+                  <th key={p} className="px-1 py-2 text-center w-9 font-bold">
                     {p}
                   </th>
                 ))}
@@ -115,23 +115,25 @@ export function LeaderboardModal({
                     key={team.rank}
                     className={`border-b border-gray-100 ${isMe ? 'bg-[var(--tinkoff-yellow)]/20' : ''}`}
                   >
-                    <td className="px-3 py-2 text-center">
+                    <td className="px-1 py-2 text-center">
                       {getRankIcon(team.rank)}
                     </td>
-                    <td className="px-3 py-2">
-                      <span className={isMe ? 'font-semibold' : ''}>
+                    <td className="px-2 py-2 truncate">
+                      <span
+                        className={`text-sm ${isMe ? 'font-semibold' : ''}`}
+                      >
                         {team.teamName}
                       </span>
                       {isMe && (
-                        <span className="text-xs bg-[var(--tinkoff-yellow)] px-1.5 py-0.5 rounded ml-2">
+                        <span className="text-xs bg-[var(--tinkoff-yellow)] px-1 py-0.5 rounded ml-1">
                           Вы
                         </span>
                       )}
                     </td>
-                    <td className="px-2 py-2 text-center font-mono font-bold">
+                    <td className="px-1 py-2 text-center font-mono font-bold">
                       {team.solved}
                     </td>
-                    <td className="px-2 py-2 text-center font-mono text-red-600 text-xs">
+                    <td className="px-1 py-2 text-center font-mono text-red-600 text-xs">
                       {team.penalty}
                     </td>
                     {PROBLEMS.map((p) => (

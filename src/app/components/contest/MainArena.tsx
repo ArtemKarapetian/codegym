@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Header } from './Header';
 import { Toolbox } from './Toolbox';
 import { MapCanvas } from './MapCanvas';
@@ -9,7 +9,7 @@ import { AnnouncementsModal } from './AnnouncementsModal';
 import { LeaderboardModal } from './LeaderboardModal';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import type { ZoneData, TimerState, City } from '@shared/types';
+import type { ZoneData, TimerState, City, Announcement } from '@shared/types';
 
 interface MainArenaProps {
   teamName: string;
@@ -42,6 +42,8 @@ export function MainArena({ teamName, cityId, onLogout }: MainArenaProps) {
   const [exercises, setExercises] = useState<
     { number: number; name: string; description: string | null }[]
   >([]);
+  const [teamSolved, setTeamSolved] = useState(0);
+  const [teamTotal, setTeamTotal] = useState(9);
 
   // Fetch city info
   useEffect(() => {
@@ -59,6 +61,33 @@ export function MainArena({ teamName, cityId, onLogout }: MainArenaProps) {
       .then(setExercises)
       .catch(console.error);
   }, [cityId]);
+
+  // Fetch team score from leaderboard
+  useEffect(() => {
+    api
+      .get<{ solved: number; teamName: string }[]>(
+        `/api/cities/${cityId}/leaderboard`,
+      )
+      .then((data) => {
+        const me = data.find((t) => t.teamName === teamName);
+        if (me) setTeamSolved(me.solved);
+        setTeamTotal(9);
+      })
+      .catch(console.error);
+
+    const interval = setInterval(() => {
+      api
+        .get<{ solved: number; teamName: string }[]>(
+          `/api/cities/${cityId}/leaderboard`,
+        )
+        .then((data) => {
+          const me = data.find((t) => t.teamName === teamName);
+          if (me) setTeamSolved(me.solved);
+        })
+        .catch(console.error);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [cityId, teamName]);
 
   // Fetch zones
   const fetchZones = useCallback(() => {
@@ -115,6 +144,98 @@ export function MainArena({ teamName, cityId, onLogout }: MainArenaProps) {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Global announcement polling with sound
+  const knownAnnouncementIds = useRef<Set<string>>(new Set());
+  const isFirstAnnouncementPoll = useRef(true);
+
+  useEffect(() => {
+    // Request notification permission
+    if (
+      typeof Notification !== 'undefined' &&
+      Notification.permission === 'default'
+    ) {
+      Notification.requestPermission().catch(console.error);
+    }
+
+    const poll = () => {
+      api
+        .get<Announcement[]>(`/api/cities/${cityId}/announcements`)
+        .then((data) => {
+          if (isFirstAnnouncementPoll.current) {
+            knownAnnouncementIds.current = new Set(data.map((a) => a.id));
+            isFirstAnnouncementPoll.current = false;
+            return;
+          }
+          const newOnes = data.filter(
+            (a) => !knownAnnouncementIds.current.has(a.id),
+          );
+          if (newOnes.length > 0) {
+            // Sound — two-tone chime, ~1.5s
+            try {
+              const ctx = new (
+                window.AudioContext ||
+                (
+                  window as unknown as {
+                    webkitAudioContext: typeof AudioContext;
+                  }
+                ).webkitAudioContext
+              )();
+              const gain = ctx.createGain();
+              gain.connect(ctx.destination);
+              gain.gain.setValueAtTime(0.4, ctx.currentTime);
+              gain.gain.exponentialRampToValueAtTime(
+                0.001,
+                ctx.currentTime + 1.5,
+              );
+
+              const o1 = ctx.createOscillator();
+              o1.type = 'sine';
+              o1.frequency.setValueAtTime(659, ctx.currentTime); // E5
+              o1.frequency.setValueAtTime(880, ctx.currentTime + 0.3); // A5
+              o1.frequency.setValueAtTime(1047, ctx.currentTime + 0.6); // C6
+              o1.connect(gain);
+              o1.start(ctx.currentTime);
+              o1.stop(ctx.currentTime + 1.5);
+
+              const o2 = ctx.createOscillator();
+              o2.type = 'triangle';
+              o2.frequency.setValueAtTime(1319, ctx.currentTime + 0.15); // E6
+              o2.frequency.setValueAtTime(1760, ctx.currentTime + 0.45); // A6
+              const g2 = ctx.createGain();
+              g2.gain.setValueAtTime(0.15, ctx.currentTime);
+              g2.gain.exponentialRampToValueAtTime(
+                0.001,
+                ctx.currentTime + 1.2,
+              );
+              o2.connect(g2);
+              g2.connect(ctx.destination);
+              o2.start(ctx.currentTime + 0.15);
+              o2.stop(ctx.currentTime + 1.2);
+            } catch {
+              /* ignore */
+            }
+
+            // Toast (stays until dismissed) + browser notification
+            for (const a of newOnes) {
+              toast(a.title, { description: a.message, duration: Infinity });
+              if (
+                typeof Notification !== 'undefined' &&
+                Notification.permission === 'granted'
+              ) {
+                new Notification(a.title, { body: a.message });
+              }
+            }
+          }
+          knownAnnouncementIds.current = new Set(data.map((d) => d.id));
+        })
+        .catch(console.error);
+    };
+
+    poll();
+    const interval = setInterval(poll, 10000);
+    return () => clearInterval(interval);
+  }, [cityId]);
 
   const handleZoneClick = (zone: ZoneData) => {
     setSelectedZone(zone);
@@ -188,30 +309,63 @@ export function MainArena({ teamName, cityId, onLogout }: MainArenaProps) {
               {/* Exercises */}
               {exercises.length > 0 && (
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900 mb-3">
-                    Упражнения
-                  </h2>
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-lg font-semibold text-gray-900">
+                      Упражнения
+                    </h2>
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl font-bold text-[var(--tinkoff-yellow)]">
+                        {teamSolved}
+                      </span>
+                      <span className="text-gray-400">/</span>
+                      <span className="text-gray-500">{teamTotal}</span>
+                    </div>
+                  </div>
+                  {/* Progress bar */}
+                  <div className="h-2 bg-gray-100 rounded-full mb-4 overflow-hidden">
+                    <div
+                      className="h-full bg-[var(--tinkoff-yellow)] rounded-full transition-all duration-500"
+                      style={{ width: `${(teamSolved / teamTotal) * 100}%` }}
+                    />
+                  </div>
                   <div className="space-y-2">
-                    {exercises.map((ex) => (
-                      <div
-                        key={ex.number}
-                        className="flex items-center gap-3 p-3 bg-white rounded-xl border border-[var(--tinkoff-border)]"
-                      >
-                        <span className="w-8 h-8 bg-[var(--tinkoff-yellow)]/20 rounded-lg flex items-center justify-center font-mono font-bold text-sm shrink-0">
-                          {ex.number}
-                        </span>
-                        <div className="min-w-0">
-                          <p className="font-medium text-sm text-gray-900">
-                            {ex.name}
-                          </p>
-                          {ex.description && (
-                            <p className="text-xs text-gray-500 truncate">
-                              {ex.description}
+                    {exercises.map((ex) => {
+                      const done = ex.number <= teamSolved;
+                      return (
+                        <div
+                          key={ex.number}
+                          className={`flex items-center gap-3 p-3 rounded-xl border transition-colors ${
+                            done
+                              ? 'bg-green-50 border-green-200'
+                              : ex.number === teamSolved + 1
+                                ? 'bg-[var(--tinkoff-yellow)]/10 border-[var(--tinkoff-yellow)] shadow-sm'
+                                : 'bg-white border-[var(--tinkoff-border)]'
+                          }`}
+                        >
+                          <span
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-sm shrink-0 ${
+                              done
+                                ? 'bg-green-500 text-white'
+                                : 'bg-[var(--tinkoff-yellow)]/20'
+                            }`}
+                          >
+                            {done ? '✓' : ex.number}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p
+                              className={`font-medium text-sm ${done ? 'text-green-800' : 'text-gray-900'}`}
+                            >
+                              {ex.name}
                             </p>
-                          )}
+                            {ex.description && (
+                              <p className="text-xs text-gray-500 truncate">
+                                {ex.description}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}

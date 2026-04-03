@@ -177,7 +177,7 @@ export function PublicLeaderboard() {
   ) => {
     if (!problem) {
       return (
-        <td key={key} className="px-2 py-3 text-center text-gray-300">
+        <td key={key} className="px-1 py-2 text-center text-gray-300">
           —
         </td>
       );
@@ -185,7 +185,7 @@ export function PublicLeaderboard() {
 
     if (problem.solved) {
       return (
-        <td key={key} className="px-2 py-3 text-center">
+        <td key={key} className="px-1 py-2 text-center">
           <div className="inline-flex flex-col items-center">
             <span className="font-mono font-bold text-green-700">
               +{problem.attempts === 1 ? '' : problem.attempts - 1}
@@ -201,7 +201,7 @@ export function PublicLeaderboard() {
     }
 
     return (
-      <td key={key} className="px-2 py-3 text-center">
+      <td key={key} className="px-1 py-2 text-center">
         <span className="font-mono text-red-400">-{problem.attempts}</span>
       </td>
     );
@@ -264,20 +264,20 @@ export function PublicLeaderboard() {
         style={{ maxWidth: '80rem' }}
       >
         <div className="rounded-xl border border-gray-200 overflow-hidden h-full">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm table-fixed">
             <thead>
               <tr
                 style={{ backgroundColor: 'rgba(255,221,45,0.2)' }}
                 className="border-b border-gray-200"
               >
-                <th className="px-4 py-3 text-center w-14 font-semibold text-gray-600">
+                <th className="px-2 py-2 text-center w-10 font-semibold text-gray-600">
                   #
                 </th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">
+                <th className="px-2 py-2 text-left font-semibold text-gray-600">
                   Команда
                 </th>
                 <th
-                  className={`px-3 py-3 text-center w-16 font-semibold cursor-pointer select-none ${
+                  className={`px-1 py-2 text-center w-10 font-semibold cursor-pointer select-none ${
                     !sortByFun
                       ? 'text-gray-900'
                       : 'text-gray-400 hover:text-gray-600'
@@ -287,13 +287,13 @@ export function PublicLeaderboard() {
                 >
                   Σ {!sortByFun && isMinsk ? '▼' : ''}
                 </th>
-                <th className="px-3 py-3 text-center w-16 font-semibold text-gray-600">
+                <th className="px-1 py-2 text-center w-12 font-semibold text-gray-600">
                   Штраф
                 </th>
                 {PROBLEMS.map((p) => (
                   <th
                     key={p}
-                    className="px-2 py-3 text-center w-14 font-bold text-gray-700"
+                    className="px-1 py-2 text-center w-10 font-bold text-gray-700"
                   >
                     {p}
                   </th>
@@ -327,23 +327,21 @@ export function PublicLeaderboard() {
                       backgroundColor: getRowBg(team.rank),
                     }}
                   >
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-2 py-2 text-center">
                       {getRankDisplay(team.rank)}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-2 py-2">
                       <span
-                        className={`font-semibold ${team.rank <= 3 ? 'text-black' : 'text-gray-800'}`}
+                        className={`font-semibold text-sm ${team.rank <= 3 ? 'text-black' : 'text-gray-800'}`}
                       >
                         {team.teamName}
                       </span>
                     </td>
-                    <td className="px-3 py-3 text-center">
-                      <span className="font-mono font-bold text-lg">
-                        {team.solved}
-                      </span>
+                    <td className="px-1 py-2 text-center">
+                      <span className="font-mono font-bold">{team.solved}</span>
                     </td>
-                    <td className="px-3 py-3 text-center">
-                      <span className="font-mono text-red-600">
+                    <td className="px-1 py-2 text-center">
+                      <span className="font-mono text-red-600 text-xs">
                         {team.penalty}
                       </span>
                     </td>
