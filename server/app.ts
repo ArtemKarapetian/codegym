@@ -10,6 +10,8 @@ import announcements from './routes/announcements';
 import timer from './routes/timer';
 import leaderboard from './routes/leaderboard';
 import sync from './routes/sync';
+import funPointsRouter from './routes/fun-points';
+import exercisesRouter from './routes/exercises';
 
 export function createApp() {
   const app = new Hono();
@@ -38,6 +40,8 @@ export function createApp() {
   app.route('/api', timer);
   app.route('/api', leaderboard);
   app.route('/api', sync);
+  app.route('/api', funPointsRouter);
+  app.route('/api', exercisesRouter);
 
   // Health check
   app.get('/api/health', (c) => c.json({ ok: true }));

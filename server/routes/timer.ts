@@ -52,6 +52,18 @@ function computeTimer(city: typeof cities.$inferSelect): TimerState {
   };
 }
 
+// Public timer state (for leaderboard screen)
+router.get('/public/cities/:cityId/timer', (c) => {
+  const city = db
+    .select()
+    .from(cities)
+    .where(eq(cities.id, c.req.param('cityId')))
+    .get();
+
+  if (!city) return c.json({ error: 'City not found' }, 404);
+  return c.json(computeTimer(city));
+});
+
 // Get timer state
 router.get('/cities/:cityId/timer', authMiddleware, (c) => {
   const city = db

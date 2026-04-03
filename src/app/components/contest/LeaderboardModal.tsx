@@ -70,7 +70,7 @@ export function LeaderboardModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl max-h-[85vh] flex flex-col overflow-y-auto">
+      <DialogContent className="max-w-[95vw] w-full max-h-[95vh] flex flex-col overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl flex items-center gap-2">
             <Trophy className="w-6 h-6 text-[var(--tinkoff-yellow)]" />

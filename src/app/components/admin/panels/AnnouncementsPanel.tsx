@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from '@/app/components/ui/dialog';
 import { api } from '@/lib/api';
-import type { Announcement } from '@shared/types';
+import type { Announcement, User } from '@shared/types';
 
 interface AnnouncementsPanelProps {
   cityId: string;
@@ -121,6 +121,24 @@ function CreateAnnouncementDialog({
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
   const [important, setImportant] = useState(false);
+  const [targetSpecificTeams, setTargetSpecificTeams] = useState(false);
+  const [teams, setTeams] = useState<User[]>([]);
+  const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (open && targetSpecificTeams && teams.length === 0) {
+      api
+        .get<User[]>(`/api/cities/${cityId}/teams`)
+        .then(setTeams)
+        .catch(console.error);
+    }
+  }, [open, targetSpecificTeams, cityId]);
+
+  const toggleTeam = (id: string) => {
+    setSelectedTeamIds((prev) =>
+      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id],
+    );
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,12 +146,15 @@ function CreateAnnouncementDialog({
       title,
       message,
       important,
+      targetTeamIds: targetSpecificTeams ? selectedTeamIds : undefined,
     });
     onCreated();
     onClose();
     setTitle('');
     setMessage('');
     setImportant(false);
+    setTargetSpecificTeams(false);
+    setSelectedTeamIds([]);
   };
 
   return (
@@ -169,6 +190,35 @@ function CreateAnnouncementDialog({
             />
             <Label htmlFor="important">Важное объявление</Label>
           </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="targetSpecificTeams"
+              checked={targetSpecificTeams}
+              onChange={(e) => setTargetSpecificTeams(e.target.checked)}
+            />
+            <Label htmlFor="targetSpecificTeams">Для конкретных команд</Label>
+          </div>
+          {targetSpecificTeams && (
+            <div className="border border-[var(--tinkoff-border)] rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
+              {teams.length === 0 && (
+                <p className="text-sm text-gray-400">Загрузка команд...</p>
+              )}
+              {teams.map((team) => (
+                <div key={team.id} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id={`team-${team.id}`}
+                    checked={selectedTeamIds.includes(team.id)}
+                    onChange={() => toggleTeam(team.id)}
+                  />
+                  <Label htmlFor={`team-${team.id}`}>
+                    {team.teamName ?? team.login}
+                  </Label>
+                </div>
+              ))}
+            </div>
+          )}
           <Button type="submit" className="w-full">
             Опубликовать
           </Button>

@@ -18,6 +18,7 @@ function rowToUser(row: typeof users.$inferSelect): User {
     role: row.role as User['role'],
     teamName: row.teamName,
     cityId: row.cityId,
+    plainPassword: row.plainPassword,
     createdAt: row.createdAt,
   };
 }

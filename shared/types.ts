@@ -31,6 +31,7 @@ export interface City {
   timerStatus: TimerStatus;
   mapEnabled: boolean;
   contestDate: string | null;
+  chatUrl: string | null;
   createdAt: string;
 }
 
@@ -51,6 +52,7 @@ export interface User {
   role: UserRole;
   teamName: string | null;
   cityId: string | null;
+  plainPassword?: string | null;
   createdAt: string;
 }
 
@@ -63,6 +65,7 @@ export interface Announcement {
   timestamp: string;
   important: boolean;
   isNew: boolean;
+  targetTeamIds?: string[] | null;
 }
 
 // ── Leaderboard ──

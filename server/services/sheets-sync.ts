@@ -2,48 +2,6 @@ import { db } from '../db/client';
 import { cities } from '../db/schema';
 import type { TeamScore, ProblemResult } from '@shared/types';
 
-// ── CSV parsing ──
-
-function parseCSV(raw: string): string[][] {
-  const rows: string[][] = [];
-  let current = '';
-  let inQuotes = false;
-  let row: string[] = [];
-
-  for (let i = 0; i < raw.length; i++) {
-    const ch = raw[i];
-    if (inQuotes) {
-      if (ch === '"' && raw[i + 1] === '"') {
-        current += '"';
-        i++;
-      } else if (ch === '"') {
-        inQuotes = false;
-      } else {
-        current += ch;
-      }
-    } else {
-      if (ch === '"') {
-        inQuotes = true;
-      } else if (ch === ',') {
-        row.push(current.trim());
-        current = '';
-      } else if (ch === '\n' || (ch === '\r' && raw[i + 1] === '\n')) {
-        row.push(current.trim());
-        current = '';
-        if (row.some((c) => c !== '')) rows.push(row);
-        row = [];
-        if (ch === '\r') i++;
-      } else {
-        current += ch;
-      }
-    }
-  }
-  row.push(current.trim());
-  if (row.some((c) => c !== '')) rows.push(row);
-
-  return rows;
-}
-
 function isTruthy(val: string): boolean {
   const v = val.toUpperCase().trim();
   return v === 'TRUE' || v === '1' || v === 'YES' || v === 'ДА';
@@ -59,31 +17,17 @@ interface TeamRow {
 
 const PROBLEM_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
 
-function parseSheet(csv: string): TeamRow[] {
-  const rows = parseCSV(csv);
-  if (rows.length < 2) return [];
-
-  // header: №, Город, Команда, Col1..Col9, [Итого, ...]
-  const results: TeamRow[] = [];
-  for (let i = 1; i < rows.length; i++) {
-    const r = rows[i];
-    const city = r[1] ?? '';
-    const team = r[2] ?? '';
-    if (!city || !team) continue;
-
-    const columns: boolean[] = [];
-    for (let j = 3; j < 3 + 9; j++) {
-      columns.push(isTruthy(r[j] ?? ''));
-    }
-    results.push({ city, team, columns });
-  }
-  return results;
-}
-
 // ── In-memory leaderboard store ──
 
 // cityId -> TeamScore[]
 const leaderboardStore = new Map<string, TeamScore[]>();
+
+// cityName -> teamNames (from last sync, for account generation)
+const teamsByCity = new Map<string, string[]>();
+
+export function getTeamsByCity(): Map<string, string[]> {
+  return teamsByCity;
+}
 
 export function getLeaderboardForCity(cityId: string): TeamScore[] {
   return leaderboardStore.get(cityId) ?? [];
@@ -127,12 +71,12 @@ export interface SyncResult {
   skippedNoCity: string[];
 }
 
-async function fetchWithRetry(url: string, retries = 3): Promise<string> {
+async function fetchWithRetry(url: string, retries = 3): Promise<Response> {
   for (let i = 0; i < retries; i++) {
     try {
-      const r = await fetch(url);
-      if (!r.ok) throw new Error(`Fetch failed: ${r.status}`);
-      return await r.text();
+      const r = await fetch(url, { cache: 'no-store' });
+      if (!r.ok) throw new Error(`Fetch failed: ${r.status} ${await r.text()}`);
+      return r;
     } catch (err) {
       if (i === retries - 1) throw err;
       await new Promise((resolve) => setTimeout(resolve, 2000 * (i + 1)));
@@ -141,17 +85,40 @@ async function fetchWithRetry(url: string, retries = 3): Promise<string> {
   throw new Error('Unreachable');
 }
 
-export async function syncFromSheets(
-  tasksUrl: string,
-  exercisesUrl: string,
-): Promise<SyncResult> {
-  const [tasksCsv, exercisesCsv] = await Promise.all([
+/** Parse Google Sheets API JSON response into TeamRow[] */
+function parseApiResponse(data: { values?: string[][] }): TeamRow[] {
+  const rows = data.values;
+  if (!rows || rows.length < 2) return [];
+
+  const results: TeamRow[] = [];
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    const city = (r[1] ?? '').trim();
+    const team = (r[2] ?? '').trim();
+    if (!city || !team) continue;
+
+    const columns: boolean[] = [];
+    for (let j = 3; j < 3 + 9; j++) {
+      columns.push(isTruthy(r[j] ?? ''));
+    }
+    results.push({ city, team, columns });
+  }
+  return results;
+}
+
+export async function syncFromSheets(): Promise<SyncResult> {
+  const { tasksUrl, exercisesUrl } = getSheetUrls();
+
+  const [tasksRes, exercisesRes] = await Promise.all([
     fetchWithRetry(tasksUrl),
     fetchWithRetry(exercisesUrl),
   ]);
 
-  const taskRows = parseSheet(tasksCsv);
-  const exerciseRows = parseSheet(exercisesCsv);
+  const tasksData = (await tasksRes.json()) as { values?: string[][] };
+  const exercisesData = (await exercisesRes.json()) as { values?: string[][] };
+
+  const taskRows = parseApiResponse(tasksData);
+  const exerciseRows = parseApiResponse(exercisesData);
 
   // Build exercise lookup: city+team -> columns
   const exerciseMap = new Map<string, boolean[]>();
@@ -166,8 +133,9 @@ export async function syncFromSheets(
     cityMap.set(c.name.toLowerCase(), c.id);
   }
 
-  // Group scores by cityId
+  // Group scores by cityId + collect team names by city
   const byCityId = new Map<string, TeamScore[]>();
+  const newTeamsByCity = new Map<string, string[]>();
   const result: SyncResult = { synced: 0, skippedNoCity: [] };
 
   for (const taskRow of taskRows) {
@@ -199,6 +167,10 @@ export async function syncFromSheets(
       }
     }
 
+    // Track teams by city name
+    if (!newTeamsByCity.has(taskRow.city)) newTeamsByCity.set(taskRow.city, []);
+    newTeamsByCity.get(taskRow.city)!.push(taskRow.team);
+
     if (!byCityId.has(cityId)) byCityId.set(cityId, []);
     byCityId.get(cityId)!.push({
       rank: 0, // computed below
@@ -219,24 +191,30 @@ export async function syncFromSheets(
     leaderboardStore.set(cityId, teams);
   }
 
+  // Update teams by city
+  teamsByCity.clear();
+  for (const [city, teams] of newTeamsByCity) {
+    teamsByCity.set(city, teams);
+  }
+
   return result;
 }
 
 // ── Sheet URL helpers ──
 
 export function getSheetUrls() {
-  const base = process.env.GOOGLE_SHEET_BASE_URL;
-  const tasksGid = process.env.GOOGLE_SHEET_TASKS_GID;
-  const exercisesGid = process.env.GOOGLE_SHEET_EXERCISES_GID;
+  const apiKey = process.env.GOOGLE_SHEETS_API_KEY;
+  const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
 
-  if (!base || !tasksGid || !exercisesGid) {
+  if (!apiKey || !spreadsheetId) {
     throw new Error(
-      'Missing env: GOOGLE_SHEET_BASE_URL, GOOGLE_SHEET_TASKS_GID, GOOGLE_SHEET_EXERCISES_GID',
+      'Missing env: GOOGLE_SHEETS_API_KEY, GOOGLE_SHEETS_SPREADSHEET_ID',
     );
   }
 
+  const base = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values`;
   return {
-    tasks: `${base}?gid=${tasksGid}&single=true&output=csv`,
-    exercises: `${base}?gid=${exercisesGid}&single=true&output=csv`,
+    tasksUrl: `${base}/${encodeURIComponent('Задачи')}?key=${apiKey}`,
+    exercisesUrl: `${base}/${encodeURIComponent('Упражнения')}?key=${apiKey}`,
   };
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Bell, AlertCircle, Info } from 'lucide-react';
 import { Badge } from '@/app/components/ui/badge';
 import {
@@ -23,6 +23,37 @@ interface AnnouncementsModalProps {
   cityId: string;
 }
 
+function playNotificationBeep() {
+  try {
+    const ctx = new (
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext })
+        .webkitAudioContext
+    )();
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+    oscillator.connect(gain);
+    gain.connect(ctx.destination);
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(880, ctx.currentTime);
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    oscillator.start(ctx.currentTime);
+    oscillator.stop(ctx.currentTime + 0.3);
+  } catch {
+    // Audio not available — silently ignore
+  }
+}
+
+function showBrowserNotification(announcement: Announcement) {
+  if (typeof Notification === 'undefined') return;
+  if (Notification.permission !== 'granted') return;
+  new Notification(announcement.title, {
+    body: announcement.message,
+    icon: '/favicon.ico',
+  });
+}
+
 export function AnnouncementsModal({
   isOpen,
   onClose,
@@ -30,12 +61,44 @@ export function AnnouncementsModal({
 }: AnnouncementsModalProps) {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [filter, setFilter] = useState<'all' | 'important'>('all');
+  const knownIdsRef = useRef<Set<string>>(new Set());
+  const isFirstPollRef = useRef(true);
+
+  // Request notification permission when the modal first opens
+  useEffect(() => {
+    if (!isOpen) return;
+    if (
+      typeof Notification !== 'undefined' &&
+      Notification.permission === 'default'
+    ) {
+      Notification.requestPermission().catch(console.error);
+    }
+  }, [isOpen]);
+
+  const handleNewAnnouncements = useCallback((data: Announcement[]) => {
+    if (isFirstPollRef.current) {
+      // On first poll, seed the known IDs without triggering notifications
+      knownIdsRef.current = new Set(data.map((a) => a.id));
+      isFirstPollRef.current = false;
+    } else {
+      const newAnnouncements = data.filter(
+        (a) => a.isNew && !knownIdsRef.current.has(a.id),
+      );
+      if (newAnnouncements.length > 0) {
+        playNotificationBeep();
+        newAnnouncements.forEach(showBrowserNotification);
+      }
+      // Update known IDs with all current announcement IDs
+      knownIdsRef.current = new Set(data.map((a) => a.id));
+    }
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
     api
       .get<Announcement[]>(`/api/cities/${cityId}/announcements`)
       .then((data) => {
+        handleNewAnnouncements(data);
         setAnnouncements(data);
 
         // Mark unread announcements as read
@@ -49,7 +112,7 @@ export function AnnouncementsModal({
         }
       })
       .catch(console.error);
-  }, [isOpen, cityId]);
+  }, [isOpen, cityId, handleNewAnnouncements]);
 
   const filteredAnnouncements =
     filter === 'important'

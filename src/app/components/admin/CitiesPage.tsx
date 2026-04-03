@@ -1,6 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, MapPin, Clock, Trophy, RefreshCw } from 'lucide-react';
+import {
+  Plus,
+  MapPin,
+  Clock,
+  Trophy,
+  RefreshCw,
+  UserPlus,
+  Download,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
@@ -19,6 +27,7 @@ export function CitiesPage() {
   const [cities, setCities] = useState<City[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
   const fetchCities = () => {
     api.get<City[]>('/api/cities').then(setCities).catch(console.error);
@@ -90,6 +99,77 @@ export function CitiesPage() {
           >
             <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
             {syncing ? 'Синхронизация...' : 'Google Sheets'}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={async () => {
+              setGenerating(true);
+              try {
+                const res = await api.post<{
+                  created: number;
+                  skipped: number;
+                  accounts: {
+                    city: string;
+                    teamName: string;
+                    login: string;
+                    password: string;
+                  }[];
+                  error?: string;
+                }>('/api/admin/generate-accounts', {});
+                if (res.error) {
+                  toast.error(`Ошибка: ${res.error}`);
+                } else if (res.created === 0) {
+                  toast.info(
+                    `Все аккаунты уже существуют (${res.skipped} команд)`,
+                  );
+                } else {
+                  // Download CSV with new accounts only
+                  let csv = 'Город,Команда,Логин,Пароль\n';
+                  for (const c of res.accounts) {
+                    csv += `"${c.city}","${c.teamName}","${c.login}","${c.password}"\n`;
+                  }
+                  const blob = new Blob(['\uFEFF' + csv], {
+                    type: 'text/csv;charset=utf-8;',
+                  });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'new-accounts.csv';
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  toast.success(
+                    `Создано ${res.created} новых аккаунтов` +
+                      (res.skipped ? `, ${res.skipped} уже существовали` : ''),
+                  );
+                }
+              } catch (err) {
+                toast.error('Ошибка генерации');
+                console.error(err);
+              } finally {
+                setGenerating(false);
+              }
+            }}
+            disabled={generating}
+            className="gap-2"
+          >
+            <UserPlus
+              className={`w-4 h-4 ${generating ? 'animate-spin' : ''}`}
+            />
+            {generating ? 'Генерация...' : 'Аккаунты'}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              const token = localStorage.getItem('codegym_token');
+              window.open(
+                `/api/admin/credentials.csv?token=${token}`,
+                '_blank',
+              );
+            }}
+            className="gap-2"
+          >
+            <Download className="w-4 h-4" />
+            CSV
           </Button>
           <Button onClick={() => setShowCreate(true)} className="gap-2">
             <Plus className="w-4 h-4" />

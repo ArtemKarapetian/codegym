@@ -20,6 +20,11 @@ export async function signToken(payload: JwtPayload): Promise<string> {
     .sign(secret);
 }
 
+export async function verifyToken(token: string): Promise<JwtPayload> {
+  const { payload } = await jwtVerify(token, secret);
+  return payload as unknown as JwtPayload;
+}
+
 export const authMiddleware = createMiddleware<{
   Variables: { user: JwtPayload };
 }>(async (c, next) => {

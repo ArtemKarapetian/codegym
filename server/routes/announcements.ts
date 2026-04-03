@@ -16,6 +16,15 @@ function rowToAnnouncement(
 ): Announcement {
   const createdAt = new Date(row.createdAt);
 
+  let targetTeamIds: string[] | null = null;
+  if (row.targetTeamIds) {
+    try {
+      targetTeamIds = JSON.parse(row.targetTeamIds);
+    } catch {
+      // ignore
+    }
+  }
+
   return {
     id: row.id,
     title: row.title,
@@ -26,6 +35,7 @@ function rowToAnnouncement(
     }),
     important: row.important,
     isNew: !readIds.has(row.id),
+    targetTeamIds,
   };
 }
 
@@ -50,7 +60,15 @@ router.get('/cities/:cityId/announcements', authMiddleware, (c) => {
 
   const readIds = new Set(reads.map((r) => r.announcementId));
 
-  return c.json(rows.map((r) => rowToAnnouncement(r, readIds)));
+  // Filter: show only announcements targeting this user (or all)
+  const filtered = rows
+    .map((r) => rowToAnnouncement(r, readIds))
+    .filter((a) => {
+      if (!a.targetTeamIds) return true; // null = all teams
+      return a.targetTeamIds.includes(user.sub);
+    });
+
+  return c.json(filtered);
 });
 
 // Mark announcements as read
@@ -115,6 +133,9 @@ router.post(
         title: parsed.data.title,
         message: parsed.data.message,
         important: parsed.data.important,
+        targetTeamIds: parsed.data.targetTeamIds
+          ? JSON.stringify(parsed.data.targetTeamIds)
+          : null,
         createdAt: now,
       })
       .run();

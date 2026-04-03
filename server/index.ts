@@ -1,6 +1,6 @@
 import { serve } from '@hono/node-server';
 import { createApp } from './app';
-import { syncFromSheets, getSheetUrls } from './services/sheets-sync';
+import { syncFromSheets } from './services/sheets-sync';
 
 // Run migrations on startup
 import './db/migrate';
@@ -12,12 +12,11 @@ console.log(`Server running on http://localhost:${port}`);
 serve({ fetch: app.fetch, port, hostname: '0.0.0.0' });
 
 // ── Auto-sync from Google Sheets ──
-const SYNC_INTERVAL_MS = Number(process.env.SYNC_INTERVAL_MS) || 60_000; // default 60s
+const SYNC_INTERVAL_MS = Number(process.env.SYNC_INTERVAL_MS) || 30_000; // default 30s
 
 async function autoSync() {
   try {
-    const { tasks, exercises } = getSheetUrls();
-    const result = await syncFromSheets(tasks, exercises);
+    const result = await syncFromSheets();
     console.log(
       `[auto-sync] synced=${result.synced}` +
         (result.skippedNoCity.length

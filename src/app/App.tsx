@@ -9,6 +9,7 @@ import { ErrorBoundary } from '@/app/components/contest/ErrorBoundary';
 import { AdminLayout } from '@/app/components/admin/AdminLayout';
 import { CitiesPage } from '@/app/components/admin/CitiesPage';
 import { CityDetailPage } from '@/app/components/admin/CityDetailPage';
+import { BaseExercisesPage } from '@/app/components/admin/BaseExercisesPage';
 import { Toaster } from '@/app/components/ui/sonner';
 
 function ProtectedRoute({
@@ -73,6 +74,7 @@ function AppRoutes() {
           }
         >
           <Route index element={<CitiesPage />} />
+          <Route path="exercises" element={<BaseExercisesPage />} />
           <Route path="cities/:cityId" element={<CityDetailPage />} />
         </Route>
         <Route

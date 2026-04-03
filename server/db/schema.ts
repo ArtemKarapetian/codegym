@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core';
 
 export const cities = sqliteTable('cities', {
   id: text('id').primaryKey(),
@@ -16,13 +16,32 @@ export const cities = sqliteTable('cities', {
     .notNull()
     .default(true),
   contestDate: text('contest_date'),
+  chatUrl: text('chat_url'),
   createdAt: text('created_at').notNull(),
+});
+
+export const exercises = sqliteTable('exercises', {
+  id: text('id').primaryKey(),
+  cityId: text('city_id').references(() => cities.id), // null = base/default
+  exerciseNumber: integer('exercise_number').notNull(), // 1-9
+  name: text('name').notNull(),
+  description: text('description'),
+});
+
+export const funPoints = sqliteTable('fun_points', {
+  id: text('id').primaryKey(),
+  cityId: text('city_id')
+    .notNull()
+    .references(() => cities.id),
+  teamName: text('team_name').notNull(),
+  points: real('points').notNull().default(0),
 });
 
 export const users = sqliteTable('users', {
   id: text('id').primaryKey(),
   login: text('login').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
+  plainPassword: text('plain_password'),
   role: text('role', { enum: ['admin', 'team'] }).notNull(),
   teamName: text('team_name'),
   cityId: text('city_id').references(() => cities.id),
@@ -59,6 +78,7 @@ export const announcements = sqliteTable('announcements', {
   title: text('title').notNull(),
   message: text('message').notNull(),
   important: integer('important', { mode: 'boolean' }).notNull().default(false),
+  targetTeamIds: text('target_team_ids'), // JSON array of user IDs, null = all teams
   createdAt: text('created_at').notNull(),
 });
 

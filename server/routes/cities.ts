@@ -21,6 +21,7 @@ function rowToCity(row: typeof cities.$inferSelect): City {
     timerStatus: row.timerStatus as City['timerStatus'],
     mapEnabled: row.mapEnabled,
     contestDate: row.contestDate ?? null,
+    chatUrl: row.chatUrl ?? null,
     createdAt: row.createdAt,
   };
 }
@@ -87,6 +88,7 @@ router.post('/', authMiddleware, adminMiddleware, async (c) => {
       durationMin: parsed.data.durationMin,
       mapEnabled: parsed.data.mapEnabled,
       contestDate: parsed.data.contestDate ?? null,
+      chatUrl: parsed.data.chatUrl ?? null,
       timerStatus: 'pending',
       createdAt: now,
     })

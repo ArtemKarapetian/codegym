@@ -1,10 +1,4 @@
-import {
-  BookOpen,
-  MessageCircle,
-  Bell,
-  Trophy,
-  HelpCircle,
-} from 'lucide-react';
+import { BookOpen, MessageCircle, Bell, Trophy } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import {
   Tooltip,
@@ -18,7 +12,6 @@ interface ToolboxProps {
   onContactClick?: () => void;
   onAnnouncementsClick?: () => void;
   onLeaderboardClick?: () => void;
-  onHelpClick?: () => void;
   isMobile?: boolean;
 }
 
@@ -27,7 +20,6 @@ export function Toolbox({
   onContactClick,
   onAnnouncementsClick,
   onLeaderboardClick,
-  onHelpClick,
   isMobile = false,
 }: ToolboxProps) {
   const tools = [
@@ -35,7 +27,6 @@ export function Toolbox({
     { icon: MessageCircle, label: 'Связь', onClick: onContactClick },
     { icon: Bell, label: 'Объявления', onClick: onAnnouncementsClick },
     { icon: Trophy, label: 'Лидерборд', onClick: onLeaderboardClick },
-    { icon: HelpCircle, label: 'Помощь', onClick: onHelpClick },
   ];
 
   if (isMobile) {

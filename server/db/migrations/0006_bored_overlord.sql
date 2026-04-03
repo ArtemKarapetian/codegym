@@ -1,0 +1,1 @@
+ALTER TABLE `cities` ADD `chat_url` text;

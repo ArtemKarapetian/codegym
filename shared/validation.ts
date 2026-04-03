@@ -16,6 +16,7 @@ export const createCitySchema = z.object({
   durationMin: z.number().int().positive().default(240),
   mapEnabled: z.boolean().default(true),
   contestDate: z.string().optional(),
+  chatUrl: z.string().optional(),
 });
 
 export const updateCitySchema = z.object({
@@ -25,6 +26,7 @@ export const updateCitySchema = z.object({
   durationMin: z.number().int().positive().optional(),
   mapEnabled: z.boolean().optional(),
   contestDate: z.string().nullable().optional(),
+  chatUrl: z.string().nullable().optional(),
 });
 
 // ── Zone ──
@@ -71,4 +73,5 @@ export const createAnnouncementSchema = z.object({
   title: z.string().min(1),
   message: z.string().min(1),
   important: z.boolean().default(false),
+  targetTeamIds: z.array(z.string()).optional(),
 });

@@ -21,9 +21,10 @@ import { toast } from 'sonner';
 interface ContactModalProps {
   isOpen: boolean;
   onClose: () => void;
+  chatUrl?: string | null;
 }
 
-export function ContactModal({ isOpen, onClose }: ContactModalProps) {
+export function ContactModal({ isOpen, onClose, chatUrl }: ContactModalProps) {
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [isSent, setIsSent] = useState(false);
@@ -69,6 +70,13 @@ export function ContactModal({ isOpen, onClose }: ContactModalProps) {
               </a>
             </Button>
             <p className="text-xs text-gray-500">@kod_sporta</p>
+            {chatUrl && (
+              <Button asChild variant="outline" className="w-full mt-2">
+                <a href={chatUrl} target="_blank" rel="noopener noreferrer">
+                  Чат города
+                </a>
+              </Button>
+            )}
           </div>
 
           {/* Divider */}

@@ -1,15 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Upload, Copy, Check } from 'lucide-react';
+import { Copy, Check, KeyRound, Star } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
-import { Label } from '@/app/components/ui/label';
-import { Textarea } from '@/app/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/app/components/ui/dialog';
+import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import type { User } from '@shared/types';
 
@@ -19,9 +18,10 @@ interface TeamsPanelProps {
 
 export function TeamsPanel({ cityId }: TeamsPanelProps) {
   const [teams, setTeams] = useState<User[]>([]);
-  const [showCreate, setShowCreate] = useState(false);
-  const [showBulk, setShowBulk] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [resetTeam, setResetTeam] = useState<User | null>(null);
+  const [funPoints, setFunPoints] = useState<Record<string, number>>({});
+  const [funTeam, setFunTeam] = useState<User | null>(null);
 
   const fetchTeams = () => {
     api
@@ -32,13 +32,11 @@ export function TeamsPanel({ cityId }: TeamsPanelProps) {
 
   useEffect(() => {
     fetchTeams();
+    fetch(`/api/public/cities/${cityId}/fun-points`)
+      .then((r) => r.json())
+      .then((data: Record<string, number>) => setFunPoints(data))
+      .catch(console.error);
   }, [cityId]);
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Удалить команду?')) return;
-    await api.delete(`/api/cities/${cityId}/teams/${id}`);
-    fetchTeams();
-  };
 
   const copyLogin = (login: string, id: string) => {
     navigator.clipboard.writeText(login);
@@ -50,25 +48,9 @@ export function TeamsPanel({ cityId }: TeamsPanelProps) {
     <div>
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm text-gray-500">{teams.length} команд</p>
-        <div className="flex gap-2">
-          <Button
-            onClick={() => setShowBulk(true)}
-            size="sm"
-            variant="outline"
-            className="gap-2"
-          >
-            <Upload className="w-4 h-4" />
-            Массовое создание
-          </Button>
-          <Button
-            onClick={() => setShowCreate(true)}
-            size="sm"
-            className="gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Добавить
-          </Button>
-        </div>
+        <p className="text-xs text-gray-400">
+          Команды создаются через кнопку «Аккаунты» на главной
+        </p>
       </div>
 
       <div className="bg-white rounded-lg border border-[var(--tinkoff-border)] divide-y">
@@ -80,7 +62,14 @@ export function TeamsPanel({ cityId }: TeamsPanelProps) {
               </div>
               <div>
                 <p className="font-medium text-sm">{team.teamName}</p>
-                <p className="text-xs text-gray-400">{team.login}</p>
+                <p className="text-xs text-gray-400">
+                  {team.login}
+                  {team.plainPassword && (
+                    <span className="ml-2 font-mono text-gray-500">
+                      / {team.plainPassword}
+                    </span>
+                  )}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-1">
@@ -99,9 +88,23 @@ export function TeamsPanel({ cityId }: TeamsPanelProps) {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => handleDelete(team.id)}
+                onClick={() => setFunTeam(team)}
+                title="Fun очки"
               >
-                <Trash2 className="w-4 h-4 text-red-400" />
+                <Star className="w-4 h-4 text-purple-400" />
+                {funPoints[team.teamName ?? ''] ? (
+                  <span className="text-xs text-purple-600 -ml-1">
+                    {funPoints[team.teamName ?? '']}
+                  </span>
+                ) : null}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setResetTeam(team)}
+                title="Сменить пароль"
+              >
+                <KeyRound className="w-4 h-4 text-gray-400" />
               </Button>
             </div>
           </div>
@@ -113,172 +116,135 @@ export function TeamsPanel({ cityId }: TeamsPanelProps) {
         )}
       </div>
 
-      <CreateTeamDialog
-        open={showCreate}
-        onClose={() => setShowCreate(false)}
-        cityId={cityId}
-        onCreated={fetchTeams}
+      <ResetPasswordDialog
+        team={resetTeam}
+        onClose={() => setResetTeam(null)}
       />
-      <BulkCreateDialog
-        open={showBulk}
-        onClose={() => setShowBulk(false)}
+
+      <FunPointsDialog
+        team={funTeam}
         cityId={cityId}
-        onCreated={fetchTeams}
+        currentPoints={funPoints[funTeam?.teamName ?? ''] ?? 0}
+        onClose={() => setFunTeam(null)}
+        onSaved={(teamName, pts) => {
+          setFunPoints((prev) => ({ ...prev, [teamName]: pts }));
+          setFunTeam(null);
+        }}
       />
     </div>
   );
 }
 
-function CreateTeamDialog({
-  open,
+function ResetPasswordDialog({
+  team,
   onClose,
-  cityId,
-  onCreated,
 }: {
-  open: boolean;
+  team: User | null;
   onClose: () => void;
-  cityId: string;
-  onCreated: () => void;
 }) {
-  const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
-  const [teamName, setTeamName] = useState('');
+  const [result, setResult] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await api.post(`/api/cities/${cityId}/teams`, {
-      login,
-      password,
-      teamName,
-    });
-    onCreated();
-    onClose();
-    setLogin('');
-    setPassword('');
-    setTeamName('');
+  const handleReset = async (customPassword?: string) => {
+    if (!team) return;
+    const res = await api.post<{ login: string; password: string }>(
+      `/api/admin/reset-password/${team.id}`,
+      customPassword ? { password: customPassword } : {},
+    );
+    setResult(`Логин: ${res.login}\nНовый пароль: ${res.password}`);
+    toast.success('Пароль обновлён');
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent>
+    <Dialog
+      open={!!team}
+      onOpenChange={() => {
+        onClose();
+        setPassword('');
+        setResult(null);
+      }}
+    >
+      <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Новая команда</DialogTitle>
+          <DialogTitle>Сменить пароль: {team?.teamName}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label>Логин</Label>
-            <Input
-              value={login}
-              onChange={(e) => setLogin(e.target.value)}
-              placeholder="team-01"
-              required
-            />
-          </div>
-          <div>
-            <Label>Пароль</Label>
+        <div className="space-y-4">
+          <div className="flex gap-2">
             <Input
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="1234"
-              required
+              placeholder="Новый пароль (или оставить пустым)"
             />
+            <Button
+              onClick={() => handleReset(password || undefined)}
+              className="shrink-0"
+            >
+              {password ? 'Задать' : 'Случайный'}
+            </Button>
           </div>
-          <div>
-            <Label>Название команды</Label>
-            <Input
-              value={teamName}
-              onChange={(e) => setTeamName(e.target.value)}
-              placeholder="Team Alpha"
-              required
-            />
-          </div>
-          <Button type="submit" className="w-full">
-            Создать
-          </Button>
-        </form>
+          {result && (
+            <pre className="p-3 bg-gray-50 border rounded-lg text-sm whitespace-pre-wrap font-mono">
+              {result}
+            </pre>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );
 }
 
-function BulkCreateDialog({
-  open,
-  onClose,
+function FunPointsDialog({
+  team,
   cityId,
-  onCreated,
+  currentPoints,
+  onClose,
+  onSaved,
 }: {
-  open: boolean;
-  onClose: () => void;
+  team: User | null;
   cityId: string;
-  onCreated: () => void;
+  currentPoints: number;
+  onClose: () => void;
+  onSaved: (teamName: string, points: number) => void;
 }) {
-  const [text, setText] = useState('');
-  const [result, setResult] = useState<string | null>(null);
+  const key = team?.id ?? '';
+  const [points, setPoints] = useState(String(currentPoints));
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const teams = text
-      .trim()
-      .split('\n')
-      .filter(Boolean)
-      .map((line) => {
-        const parts = line.split(/[,\t;]+/).map((s) => s.trim());
-        return {
-          login: parts[0],
-          password: parts[1] || '1234',
-          teamName: parts[2] || parts[0],
-        };
-      });
-
-    const res = await api.post<{ created: unknown[]; errors: string[] }>(
-      `/api/cities/${cityId}/teams/bulk`,
-      { teams },
-    );
-
-    setResult(
-      `Создано: ${res.created.length}` +
-        (res.errors.length > 0 ? `\nОшибки: ${res.errors.join(', ')}` : ''),
-    );
-    onCreated();
-  };
+  // Reset when different team opens — use key pattern instead of effect
+  const [prevKey, setPrevKey] = useState(key);
+  if (key !== prevKey) {
+    setPrevKey(key);
+    setPoints(String(currentPoints));
+  }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={() => {
-        onClose();
-        setResult(null);
-        setText('');
-      }}
-    >
-      <DialogContent>
+    <Dialog open={!!team} onOpenChange={onClose}>
+      <DialogContent className="max-w-xs">
         <DialogHeader>
-          <DialogTitle>Массовое создание команд</DialogTitle>
+          <DialogTitle>Fun очки: {team?.teamName}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label>
-              По одной на строку: логин, пароль, название (разделитель: запятая
-              или табуляция)
-            </Label>
-            <Textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder={`team-01, 1234, Команда Альфа\nteam-02, 5678, Команда Бета`}
-              rows={8}
-              required
-            />
-          </div>
-          {result && (
-            <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm whitespace-pre-line">
-              {result}
-            </div>
-          )}
-          <Button type="submit" className="w-full">
-            Создать
+        <div className="flex gap-2">
+          <Input
+            type="number"
+            step="0.1"
+            value={points}
+            onChange={(e) => setPoints(e.target.value)}
+            className="font-mono"
+          />
+          <Button
+            onClick={async () => {
+              if (!team?.teamName) return;
+              const pts = parseFloat(points) || 0;
+              await api.post(`/api/cities/${cityId}/fun-points`, {
+                teamName: team.teamName,
+                points: pts,
+              });
+              toast.success(`${team.teamName}: ${pts} очков`);
+              onSaved(team.teamName, pts);
+            }}
+          >
+            Сохранить
           </Button>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );
