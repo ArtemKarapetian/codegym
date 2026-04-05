@@ -17,9 +17,7 @@ export function RulesModal({ isOpen, onClose }: RulesModalProps) {
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-2xl">
-            Правила контеста Код спорта
-          </DialogTitle>
+          <DialogTitle className="text-2xl">Правила Кода спорта</DialogTitle>
           <DialogDescription>
             Внимательно ознакомьтесь с правилами перед началом
           </DialogDescription>
