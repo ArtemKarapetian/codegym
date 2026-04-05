@@ -1,0 +1,52 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to VPS
+        env:
+          REMOTE: ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}
+          APP_DIR: /opt/codegym
+        run: |
+          # Upload built artifacts
+          rsync -azP --delete dist/ "${REMOTE}:${APP_DIR}/dist/"
+
+          # Upload migrations
+          rsync -azP server/db/migrations/ "${REMOTE}:${APP_DIR}/server/db/migrations/"
+
+          # Upload deploy scripts
+          rsync -azP deploy/ "${REMOTE}:${APP_DIR}/deploy/"
+
+          # Upload package files
+          scp package.json package-lock.json "${REMOTE}:${APP_DIR}/"
+
+          # Install native deps & restart
+          ssh "$REMOTE" "cd ${APP_DIR} && \
+            npm install --omit=dev better-sqlite3 bcryptjs 2>/dev/null && \
+            chown -R codegym:codegym ${APP_DIR} && \
+            systemctl restart codegym"
