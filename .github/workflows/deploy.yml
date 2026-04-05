@@ -31,7 +31,7 @@ jobs:
       - name: Deploy to VPS
         env:
           REMOTE: ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}
-          APP_DIR: /opt/codegym
+          APP_DIR: ~/codegym/codegym
         run: |
           # Upload built artifacts
           rsync -azP --delete dist/ "${REMOTE}:${APP_DIR}/dist/"
@@ -48,5 +48,4 @@ jobs:
           # Install native deps & restart
           ssh "$REMOTE" "cd ${APP_DIR} && \
             npm install --omit=dev better-sqlite3 bcryptjs 2>/dev/null && \
-            chown -R codegym:codegym ${APP_DIR} && \
-            systemctl restart codegym"
+            pm2 restart codegym --node-args='--env-file=.env'"
