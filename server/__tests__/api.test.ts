@@ -160,26 +160,19 @@ describe('API Integration Tests', () => {
       expect(body.sheetId).toBe('abc123');
     });
 
-    it('update city (admin) — exercise names', async () => {
-      const names = [
-        'Упражнение А',
-        'Упражнение Б',
-        'Упражнение В',
-        'Упражнение Г',
-        'Упражнение Д',
-        'Упражнение Е',
-        'Упражнение Ж',
-        'Упражнение З',
-        'Упражнение И',
-      ];
+    it('update city (admin) — sheet metadata', async () => {
       const res = await app.request(`/api/cities/${cityId}`, {
         method: 'PUT',
         headers: admin(),
-        body: JSON.stringify({ exerciseNames: names }),
+        body: JSON.stringify({
+          sheetId: 'updated-sheet-id',
+          sheetRange: 'Таблица',
+        }),
       });
       expect(res.status).toBe(200);
       const body = await json(res);
-      expect(body.exerciseNames).toEqual(names);
+      expect(body.sheetId).toBe('updated-sheet-id');
+      expect(body.sheetRange).toBe('Таблица');
     });
   });
 
@@ -251,11 +244,9 @@ describe('API Integration Tests', () => {
       const body = await json(res);
       expect(body).toHaveProperty('teams');
       expect(body).toHaveProperty('frozen');
-      expect(body).toHaveProperty('exerciseNames');
-      expect(body.exerciseNames).toHaveLength(9);
       expect(body.taskCount).toBe(10);
-      expect(body.exerciseCount).toBe(9);
       expect(Array.isArray(body.teams)).toBe(true);
+      expect(body).not.toHaveProperty('exerciseNames');
     });
 
     it('manual freeze / unfreeze', async () => {

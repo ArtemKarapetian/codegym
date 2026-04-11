@@ -46,8 +46,5 @@ export interface TeamScore {
   login: string;
   score: number;
   penalty: number;
-  tasksSolved: number;
-  exercisesDone: number;
   problems: Record<string, ProblemResult>;
-  exercises: boolean[];
 }

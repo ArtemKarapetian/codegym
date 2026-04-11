@@ -18,8 +18,6 @@ import { api } from '@/lib/api';
 import type { City, TimerState } from '@shared/types';
 import type { LeaderboardResponse } from '@shared/api';
 
-const EXERCISE_COUNT = 9;
-
 function formatRemaining(s: number): string {
   const safe = Math.max(0, s);
   const h = Math.floor(safe / 3600);
@@ -37,9 +35,6 @@ export function CityDetailPage() {
   const [sheetId, setSheetId] = useState('');
   const [sheetRange, setSheetRange] = useState('Таблица');
   const [durationMin, setDurationMin] = useState(240);
-  const [exerciseNames, setExerciseNames] = useState<string[]>(
-    Array(EXERCISE_COUNT).fill(''),
-  );
   const [remainingInput, setRemainingInput] = useState('');
 
   const refreshCity = useCallback(async () => {
@@ -49,11 +44,6 @@ export function CityDetailPage() {
     setSheetId(c.sheetId ?? '');
     setSheetRange(c.sheetRange);
     setDurationMin(c.durationMin);
-    setExerciseNames(
-      c.exerciseNames && c.exerciseNames.length === EXERCISE_COUNT
-        ? c.exerciseNames
-        : Array(EXERCISE_COUNT).fill(''),
-    );
   }, [cityId]);
 
   const refreshTimer = useCallback(async () => {
@@ -160,14 +150,11 @@ export function CityDetailPage() {
   };
 
   const handleSave = async () => {
-    const trimmedNames = exerciseNames.map((n) => n.trim());
-    const hasAny = trimmedNames.some((n) => n);
     try {
       await api.put<City>(`/api/cities/${cityId}`, {
         sheetId: sheetId.trim() || null,
         sheetRange: sheetRange.trim() || 'Таблица',
         durationMin,
-        exerciseNames: hasAny ? trimmedNames : null,
       });
       await refreshCity();
       toast.success('Сохранено');
@@ -325,31 +312,6 @@ export function CityDetailPage() {
               onChange={(e) => setDurationMin(Number(e.target.value))}
             />
           </div>
-        </div>
-      </section>
-
-      {/* Exercise names */}
-      <section className="bg-white rounded-xl border border-[var(--tinkoff-border)] p-6">
-        <h2 className="font-semibold text-lg mb-1">Названия упражнений</h2>
-        <p className="text-sm text-gray-500 mb-4">
-          Заполняй, если хочешь переопределить то, что лежит в шапке таблицы.
-          Пустые поля — откат на автоматическое название.
-        </p>
-        <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
-          {exerciseNames.map((name, i) => (
-            <div key={i}>
-              <Label>№ {i + 1}</Label>
-              <Input
-                value={name}
-                onChange={(e) => {
-                  const next = [...exerciseNames];
-                  next[i] = e.target.value;
-                  setExerciseNames(next);
-                }}
-                placeholder={`Упражнение ${i + 1}`}
-              />
-            </div>
-          ))}
         </div>
       </section>
 
