@@ -77,8 +77,19 @@ function parseTaskCell(val: string): TaskCell {
   return { solved: false, badAttempts: 0 };
 }
 
-function isSolved(val: string): boolean {
-  return parseTaskCell(val).solved;
+// Exercise cells use a different vocabulary than task cells: Minsk writes
+// "зачет", other cities may use "+", "✓", "да", "yes", "1", etc. Be liberal:
+// a cell is marked done if it is non-empty and doesn't look like an explicit
+// "not done" marker (empty, "-", "−", "0", "нет", "no", or anything starting
+// with a minus sign).
+function isExerciseDone(val: string): boolean {
+  const v = (val ?? '').trim().toLowerCase();
+  if (!v) return false;
+  if (v === '0' || v === '-' || v === '−' || v === 'нет' || v === 'no') {
+    return false;
+  }
+  if (v.startsWith('-') || v.startsWith('−')) return false;
+  return true;
 }
 
 function parsePenalty(val: string): number {
@@ -155,7 +166,7 @@ function parseSheet(values: string[][]): { rows: ParsedRow[] } {
 
     const exerciseFlags: boolean[] = [];
     for (let k = 0; k < EXERCISE_COUNT; k++) {
-      exerciseFlags.push(isSolved(r[EXERCISES_COL_START + k] ?? ''));
+      exerciseFlags.push(isExerciseDone(r[EXERCISES_COL_START + k] ?? ''));
     }
 
     const sheetPenalty = parsePenalty(r[PENALTY_COL] ?? '');
