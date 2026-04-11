@@ -2,6 +2,8 @@
 
 export type TimerStatus = 'pending' | 'running' | 'paused' | 'finished';
 
+export type PenaltyMode = 'sheet' | 'computed';
+
 export interface City {
   id: string;
   name: string;
@@ -13,6 +15,7 @@ export interface City {
   sheetId: string | null;
   sheetRange: string;
   exerciseNames: string[] | null;
+  penaltyMode: PenaltyMode;
   createdAt: string;
 }
 

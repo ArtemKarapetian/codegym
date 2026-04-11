@@ -9,6 +9,8 @@ export const loginSchema = z.object({
 
 // ── City ──
 
+export const penaltyModeSchema = z.enum(['sheet', 'computed']);
+
 export const createCitySchema = z.object({
   name: z.string().min(1),
   timezone: z.string().min(1),
@@ -17,6 +19,7 @@ export const createCitySchema = z.object({
   sheetRange: z.string().min(1).optional(),
   exerciseNames: z.array(z.string()).length(9).nullable().optional(),
   contestDate: z.string().nullable().optional(),
+  penaltyMode: penaltyModeSchema.optional(),
 });
 
 export const updateCitySchema = z.object({
@@ -27,4 +30,5 @@ export const updateCitySchema = z.object({
   sheetRange: z.string().min(1).optional(),
   exerciseNames: z.array(z.string()).length(9).nullable().optional(),
   contestDate: z.string().nullable().optional(),
+  penaltyMode: penaltyModeSchema.optional(),
 });
