@@ -11,6 +11,15 @@ import type { User } from '@shared/types';
 
 const auth = new Hono<{ Variables: { user: JwtPayload } }>();
 
+function rowToUser(row: typeof users.$inferSelect): User {
+  return {
+    id: row.id,
+    login: row.login,
+    role: row.role as User['role'],
+    createdAt: row.createdAt,
+  };
+}
+
 auth.post('/login', async (c) => {
   const body = await c.req.json();
   const parsed = loginSchema.safeParse(body);
@@ -19,55 +28,25 @@ auth.post('/login', async (c) => {
   }
 
   const { login, password } = parsed.data;
-
   const row = db.select().from(users).where(eq(users.login, login)).get();
-
-  if (!row) {
-    return c.json({ error: 'Invalid login or password' }, 401);
-  }
+  if (!row) return c.json({ error: 'Invalid login or password' }, 401);
 
   const valid = bcrypt.compareSync(password, row.passwordHash);
-  if (!valid) {
-    return c.json({ error: 'Invalid login or password' }, 401);
-  }
+  if (!valid) return c.json({ error: 'Invalid login or password' }, 401);
 
   const token = await signToken({
     sub: row.id,
-    role: row.role as 'admin' | 'team',
-    cityId: row.cityId,
+    role: row.role as User['role'],
   });
 
-  const user: User = {
-    id: row.id,
-    login: row.login,
-    role: row.role as 'admin' | 'team',
-    teamName: row.teamName,
-    cityId: row.cityId,
-    createdAt: row.createdAt,
-  };
-
-  return c.json({ token, user } satisfies LoginResponse);
+  return c.json({ token, user: rowToUser(row) } satisfies LoginResponse);
 });
 
 auth.get('/me', authMiddleware, (c) => {
   const jwt = c.get('user');
-
   const row = db.select().from(users).where(eq(users.id, jwt.sub)).get();
-
-  if (!row) {
-    return c.json({ error: 'User not found' }, 404);
-  }
-
-  const user: User = {
-    id: row.id,
-    login: row.login,
-    role: row.role as 'admin' | 'team',
-    teamName: row.teamName,
-    cityId: row.cityId,
-    createdAt: row.createdAt,
-  };
-
-  return c.json({ user } satisfies MeResponse);
+  if (!row) return c.json({ error: 'User not found' }, 404);
+  return c.json({ user: rowToUser(row) } satisfies MeResponse);
 });
 
 export default auth;

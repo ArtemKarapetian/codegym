@@ -1,12 +1,4 @@
-import type {
-  City,
-  User,
-  ZoneData,
-  Announcement,
-  TeamScore,
-  TimerState,
-  TeamProgress,
-} from './types';
+import type { City, User, TeamScore, TimerState } from './types';
 
 // ── Auth ──
 
@@ -29,64 +21,34 @@ export interface MeResponse {
 export interface CreateCityRequest {
   name: string;
   timezone: string;
-  startTime?: string;
   durationMin?: number;
-  mapEnabled?: boolean;
+  sheetId?: string | null;
+  sheetRange?: string;
+  exerciseNames?: string[] | null;
+  contestDate?: string | null;
 }
 
 export interface UpdateCityRequest {
   name?: string;
   timezone?: string;
-  startTime?: string | null;
   durationMin?: number;
-  mapEnabled?: boolean;
+  sheetId?: string | null;
+  sheetRange?: string;
+  exerciseNames?: string[] | null;
+  contestDate?: string | null;
+}
+
+export interface PublicCity {
+  id: string;
+  name: string;
+  timezone: string;
+  contestDate: string | null;
+  timerStatus: City['timerStatus'];
 }
 
 export type CitiesResponse = City[];
 export type CityResponse = City;
-
-// ── Zones ──
-
-export interface CreateZoneRequest {
-  name: string;
-  type: ZoneData['type'];
-  description?: string;
-  difficulty?: ZoneData['difficulty'];
-  positionX?: number;
-  positionY?: number;
-  sizeWidth?: number;
-  sizeHeight?: number;
-  ejudgeProblemId?: string;
-  sortOrder?: number;
-}
-
-export type UpdateZoneRequest = Partial<CreateZoneRequest>;
-
-export type ZonesResponse = ZoneData[];
-
-// ── Teams ──
-
-export interface CreateTeamRequest {
-  login: string;
-  password: string;
-  teamName: string;
-}
-
-export interface BulkCreateTeamsRequest {
-  teams: CreateTeamRequest[];
-}
-
-export type TeamsResponse = User[];
-
-// ── Announcements ──
-
-export interface CreateAnnouncementRequest {
-  title: string;
-  message: string;
-  important?: boolean;
-}
-
-export type AnnouncementsResponse = Announcement[];
+export type PublicCitiesResponse = PublicCity[];
 
 // ── Timer ──
 
@@ -94,8 +56,10 @@ export type TimerResponse = TimerState;
 
 // ── Leaderboard ──
 
-export type LeaderboardResponse = TeamScore[];
-
-// ── Progress ──
-
-export type ProgressResponse = TeamProgress[];
+export interface LeaderboardResponse {
+  teams: TeamScore[];
+  frozen: boolean;
+  exerciseNames: string[];
+  taskCount: number;
+  exerciseCount: number;
+}
