@@ -183,6 +183,14 @@ function rowsToTeamScores(
   rows: ParsedRow[],
   penaltyMode: PenaltyMode,
 ): TeamScore[] {
+  // 'sheet' mode auto-falls-back to 'computed' when the sheet's Штраф column
+  // is blank/zero for EVERY team — otherwise the whole board would show zero
+  // penalty and ties wouldn't break. Operators only see 'sheet' vs 'computed'
+  // in the UI; this fallback is invisible and kicks in when needed.
+  const anySheetPenalty = rows.some((r) => r.sheetPenalty > 0);
+  const effectiveMode: PenaltyMode =
+    penaltyMode === 'sheet' && !anySheetPenalty ? 'computed' : penaltyMode;
+
   const scores: TeamScore[] = rows.map((row) => {
     const exercisesDone = row.exerciseFlags.filter(Boolean).length;
     const taskFlags = row.taskCells.map((c) => c.solved);
@@ -193,7 +201,7 @@ function rowsToTeamScores(
     // tasks. Only count attempts for tasks that actually count — solving a
     // task that's still locked by gating shouldn't add penalty.
     let penalty: number;
-    if (penaltyMode === 'computed') {
+    if (effectiveMode === 'computed') {
       penalty = 0;
       for (let k = 0; k < TASK_COUNT; k++) {
         if (gatedTaskFlags[k]) penalty += row.taskCells[k].badAttempts;
