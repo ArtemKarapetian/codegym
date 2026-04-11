@@ -44,7 +44,7 @@ export interface TimerState {
 
 // ── User ──
 
-export type UserRole = 'admin' | 'team';
+export type UserRole = 'admin' | 'team' | 'trainer';
 
 export interface User {
   id: string;

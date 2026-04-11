@@ -37,14 +37,15 @@ router.get('/public', (c) => {
     const s = statsMap.get(row.id);
     return {
       ...city,
-      stats: s
-        ? {
-            teams: s.teams,
-            avgSolved: Math.round((s.totalSolved / s.teams) * 10) / 10,
-            maxSolved: s.maxSolved,
-            topTeam: s.topTeam,
-          }
-        : null,
+      stats:
+        s && s.teams > 0
+          ? {
+              teams: s.teams,
+              avgSolved: Math.round((s.totalSolved / s.teams) * 10) / 10,
+              maxSolved: s.maxSolved,
+              topTeam: s.topTeam,
+            }
+          : null,
     };
   });
 

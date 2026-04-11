@@ -52,3 +52,14 @@ export const adminMiddleware = createMiddleware<{
   }
   await next();
 });
+
+// Allows trainer OR admin (admin is implicitly allowed everywhere).
+export const trainerMiddleware = createMiddleware<{
+  Variables: { user: JwtPayload };
+}>(async (c, next) => {
+  const user = c.get('user');
+  if (user.role !== 'trainer' && user.role !== 'admin') {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+  await next();
+});

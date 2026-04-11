@@ -60,10 +60,12 @@ router.get('/cities/:cityId/announcements', authMiddleware, (c) => {
 
   const readIds = new Set(reads.map((r) => r.announcementId));
 
-  // Filter: show only announcements targeting this user (or all)
+  // Filter: admins see everything; teams see only "all" + announcements
+  // explicitly targeting them
   const filtered = rows
     .map((r) => rowToAnnouncement(r, readIds))
     .filter((a) => {
+      if (user.role === 'admin') return true;
       if (!a.targetTeamIds) return true; // null = all teams
       return a.targetTeamIds.includes(user.sub);
     });

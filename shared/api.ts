@@ -84,6 +84,7 @@ export interface CreateAnnouncementRequest {
   title: string;
   message: string;
   important?: boolean;
+  targetTeamIds?: string[];
 }
 
 export type AnnouncementsResponse = Announcement[];
@@ -99,3 +100,29 @@ export type LeaderboardResponse = TeamScore[];
 // ── Progress ──
 
 export type ProgressResponse = TeamProgress[];
+
+// ── Trainer ──
+
+export interface TrainerExerciseItem {
+  number: number;
+  name: string;
+  description: string | null;
+  completed: boolean;
+  source: 'sheet' | 'trainer' | null;
+}
+
+export interface TrainerGradesResponse {
+  team: { id: string; teamName: string | null; login: string };
+  exercises: TrainerExerciseItem[];
+}
+
+export interface TrainerGradeRequest {
+  exerciseNumber: number;
+  completed: boolean;
+}
+
+export interface CreateTrainerRequest {
+  login: string;
+  password: string;
+  name: string;
+}

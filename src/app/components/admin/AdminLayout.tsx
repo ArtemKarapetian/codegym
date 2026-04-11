@@ -1,5 +1,5 @@
 import { Outlet, NavLink } from 'react-router-dom';
-import { LayoutDashboard, Dumbbell, LogOut } from 'lucide-react';
+import { LayoutDashboard, Dumbbell, GraduationCap, LogOut } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { useAuth } from '@/lib/auth';
 
@@ -35,6 +35,15 @@ export function AdminLayout() {
               >
                 <Dumbbell className="w-4 h-4" />
                 Упражнения
+              </NavLink>
+              <NavLink
+                to="/admin/trainers"
+                className={({ isActive }) =>
+                  `flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${isActive ? 'bg-[var(--tinkoff-yellow)]/20 font-medium' : 'hover:bg-gray-100'}`
+                }
+              >
+                <GraduationCap className="w-4 h-4" />
+                Тренеры
               </NavLink>
             </nav>
           </div>

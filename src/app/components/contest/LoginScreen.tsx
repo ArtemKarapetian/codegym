@@ -43,20 +43,15 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
           <h1 className="text-3xl lg:text-4xl font-bold mb-2 animate-in fade-in slide-in-from-bottom-2 duration-700 delay-100 sr-only">
             Код спорта
           </h1>
-          <p className="text-gray-600 animate-in fade-in slide-in-from-bottom-2 duration-700 delay-200">
-            Офлайн-контест
-          </p>
         </div>
 
         {/* Login Form */}
         <div className="bg-white rounded-3xl shadow-2xl border-2 border-[var(--tinkoff-border)] p-8 animate-in fade-in slide-in-from-bottom-3 duration-700 delay-300">
-          <h2 className="text-2xl font-semibold mb-6 text-center">
-            Вход для команды
-          </h2>
+          <h2 className="text-2xl font-semibold mb-6 text-center">Вход</h2>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="teamLogin">Логин команды</Label>
+              <Label htmlFor="teamLogin">Логин</Label>
               <Input
                 id="teamLogin"
                 type="text"

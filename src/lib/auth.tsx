@@ -45,6 +45,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (res.user.role === 'admin') {
         navigate('/admin');
+      } else if (res.user.role === 'trainer') {
+        navigate('/trainer');
       } else {
         navigate('/contest');
       }

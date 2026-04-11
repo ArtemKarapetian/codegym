@@ -75,3 +75,16 @@ export const createAnnouncementSchema = z.object({
   important: z.boolean().default(false),
   targetTeamIds: z.array(z.string()).optional(),
 });
+
+// ── Trainer ──
+
+export const createTrainerSchema = z.object({
+  login: z.string().min(1),
+  password: z.string().min(4),
+  name: z.string().min(1),
+});
+
+export const trainerGradeSchema = z.object({
+  exerciseNumber: z.number().int().min(1).max(9),
+  completed: z.boolean(),
+});

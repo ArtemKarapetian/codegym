@@ -26,9 +26,19 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(path, { ...options, headers });
 
   if (res.status === 401) {
-    clearToken();
-    window.location.href = '/login';
-    throw new Error('Unauthorized');
+    // Only auto-bounce when an existing session expires mid-use. From the
+    // login page itself we must NOT redirect, otherwise the "неверный
+    // логин/пароль" error gets swallowed by a full-page reload before the
+    // form can render it.
+    if (
+      typeof window !== 'undefined' &&
+      window.location.pathname !== '/login'
+    ) {
+      clearToken();
+      window.location.href = '/login';
+    }
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || 'Неверный логин или пароль');
   }
 
   if (!res.ok) {

@@ -10,6 +10,11 @@ import { AdminLayout } from '@/app/components/admin/AdminLayout';
 import { CitiesPage } from '@/app/components/admin/CitiesPage';
 import { CityDetailPage } from '@/app/components/admin/CityDetailPage';
 import { BaseExercisesPage } from '@/app/components/admin/BaseExercisesPage';
+import { TrainersPage } from '@/app/components/admin/TrainersPage';
+import { TrainerLayout } from '@/app/components/trainer/TrainerLayout';
+import { TrainerCityPicker } from '@/app/components/trainer/TrainerCityPicker';
+import { TrainerTeamPicker } from '@/app/components/trainer/TrainerTeamPicker';
+import { TrainerGradePage } from '@/app/components/trainer/TrainerGradePage';
 import { Toaster } from '@/app/components/ui/sonner';
 
 function ProtectedRoute({
@@ -17,7 +22,7 @@ function ProtectedRoute({
   role,
 }: {
   children: React.ReactNode;
-  role?: 'admin' | 'team';
+  role?: 'admin' | 'team' | 'trainer';
 }) {
   const { user, loading } = useAuth();
 
@@ -40,6 +45,7 @@ function RootRedirect() {
   if (loading) return null;
   if (!user) return <Navigate to="/login" replace />;
   if (user.role === 'admin') return <Navigate to="/admin" replace />;
+  if (user.role === 'trainer') return <Navigate to="/trainer" replace />;
   return <Navigate to="/contest" replace />;
 }
 
@@ -75,7 +81,23 @@ function AppRoutes() {
         >
           <Route index element={<CitiesPage />} />
           <Route path="exercises" element={<BaseExercisesPage />} />
+          <Route path="trainers" element={<TrainersPage />} />
           <Route path="cities/:cityId" element={<CityDetailPage />} />
+        </Route>
+        <Route
+          path="/trainer"
+          element={
+            <ProtectedRoute role="trainer">
+              <TrainerLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<TrainerCityPicker />} />
+          <Route path="cities/:cityId" element={<TrainerTeamPicker />} />
+          <Route
+            path="cities/:cityId/teams/:teamId"
+            element={<TrainerGradePage />}
+          />
         </Route>
         <Route
           path="/public/leaderboard/:cityId"

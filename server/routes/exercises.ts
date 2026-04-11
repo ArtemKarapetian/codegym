@@ -4,58 +4,10 @@ import { nanoid } from 'nanoid';
 import { db } from '../db/client';
 import { exercises } from '../db/schema';
 import { authMiddleware, adminMiddleware } from '../middleware/auth';
+import { getExercisesForCity } from '../services/exercises';
 import type { JwtPayload } from '../middleware/auth';
 
-interface ExerciseItem {
-  number: number;
-  name: string;
-  description: string | null;
-  isOverride: boolean; // true = city-specific, false = base
-}
-
 const router = new Hono<{ Variables: { user: JwtPayload } }>();
-
-function getExercisesForCity(cityId: string | null): ExerciseItem[] {
-  // Get base exercises
-  const baseRows = db
-    .select()
-    .from(exercises)
-    .where(isNull(exercises.cityId))
-    .all();
-
-  const baseMap = new Map<number, (typeof baseRows)[0]>();
-  for (const r of baseRows) {
-    baseMap.set(r.exerciseNumber, r);
-  }
-
-  // Get city overrides
-  const overrideMap = new Map<number, (typeof baseRows)[0]>();
-  if (cityId) {
-    const overrideRows = db
-      .select()
-      .from(exercises)
-      .where(eq(exercises.cityId, cityId))
-      .all();
-    for (const r of overrideRows) {
-      overrideMap.set(r.exerciseNumber, r);
-    }
-  }
-
-  // Merge: city override wins over base
-  const result: ExerciseItem[] = [];
-  for (let n = 1; n <= 9; n++) {
-    const override = overrideMap.get(n);
-    const base = baseMap.get(n);
-    const row = override || base;
-    result.push({
-      number: n,
-      name: row?.name ?? `Упражнение ${n}`,
-      description: row?.description ?? null,
-      isOverride: !!override,
-    });
-  }
-  return result;
-}
 
 // Get base exercises
 router.get('/exercises/base', authMiddleware, adminMiddleware, (c) => {

@@ -1,4 +1,10 @@
-import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core';
+import {
+  sqliteTable,
+  text,
+  integer,
+  real,
+  uniqueIndex,
+} from 'drizzle-orm/sqlite-core';
 
 export const cities = sqliteTable('cities', {
   id: text('id').primaryKey(),
@@ -42,11 +48,32 @@ export const users = sqliteTable('users', {
   login: text('login').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
   plainPassword: text('plain_password'),
-  role: text('role', { enum: ['admin', 'team'] }).notNull(),
+  role: text('role', { enum: ['admin', 'team', 'trainer'] }).notNull(),
   teamName: text('team_name'),
   cityId: text('city_id').references(() => cities.id),
   createdAt: text('created_at').notNull(),
 });
+
+export const trainerGrades = sqliteTable(
+  'trainer_grades',
+  {
+    id: text('id').primaryKey(),
+    teamUserId: text('team_user_id')
+      .notNull()
+      .references(() => users.id),
+    exerciseNumber: integer('exercise_number').notNull(), // 1-9
+    gradedByUserId: text('graded_by_user_id')
+      .notNull()
+      .references(() => users.id),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => ({
+    unique: uniqueIndex('trainer_grades_team_exercise').on(
+      t.teamUserId,
+      t.exerciseNumber,
+    ),
+  }),
+);
 
 export const zones = sqliteTable('zones', {
   id: text('id').primaryKey(),

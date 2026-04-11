@@ -12,6 +12,8 @@ import leaderboard from './routes/leaderboard';
 import sync from './routes/sync';
 import funPointsRouter from './routes/fun-points';
 import exercisesRouter from './routes/exercises';
+import trainersRouter from './routes/trainers';
+import adminTrainersRouter from './routes/admin-trainers';
 
 export function createApp() {
   const app = new Hono();
@@ -42,6 +44,8 @@ export function createApp() {
   app.route('/api', sync);
   app.route('/api', funPointsRouter);
   app.route('/api', exercisesRouter);
+  app.route('/api', trainersRouter);
+  app.route('/api', adminTrainersRouter);
 
   // Health check
   app.get('/api/health', (c) => c.json({ ok: true }));
