@@ -132,7 +132,6 @@ export function PublicLeaderboard() {
   const teams = data?.teams ?? [];
   const frozen = data?.frozen ?? false;
   const taskCount = data?.taskCount ?? 10;
-  const exerciseNames = data?.exerciseNames ?? [];
 
   const taskLetters = Array.from({ length: taskCount }, (_, i) =>
     String.fromCharCode(65 + i),
@@ -232,21 +231,9 @@ export function PublicLeaderboard() {
                 {taskLetters.map((p) => (
                   <th
                     key={`task-${p}`}
-                    className="px-1 py-2 text-center w-9 font-bold text-gray-700"
+                    className="px-1 py-2 text-center w-10 font-bold text-gray-700"
                   >
                     {p}
-                  </th>
-                ))}
-                <th className="px-2 py-2 text-center w-20 font-semibold text-gray-600 border-l border-gray-200">
-                  Упр.
-                </th>
-                {exerciseNames.map((name, i) => (
-                  <th
-                    key={`ex-${i}`}
-                    className="px-1 py-2 text-center w-9 font-semibold text-purple-700"
-                    title={name}
-                  >
-                    {i + 1}
                   </th>
                 ))}
               </tr>
@@ -258,7 +245,6 @@ export function PublicLeaderboard() {
                     key={team.login}
                     team={team}
                     taskLetters={taskLetters}
-                    exerciseCount={exerciseNames.length}
                   />
                 ))}
               </AnimatePresence>
@@ -287,8 +273,9 @@ export function PublicLeaderboard() {
           <span>
             <span className="font-mono text-gray-300">—</span> — нет
           </span>
-          <span className="text-purple-600">
-            упражнения — столбцы 1…9 (последнее опционально)
+          <span className="text-gray-500">
+            задача засчитывается только после выполнения соответствующего
+            упражнения
           </span>
         </div>
         <span>Обновлено: {lastUpdate || '...'}</span>
@@ -300,11 +287,9 @@ export function PublicLeaderboard() {
 function TeamRow({
   team,
   taskLetters,
-  exerciseCount,
 }: {
   team: TeamScore;
   taskLetters: string[];
-  exerciseCount: number;
 }) {
   const rowBg =
     team.rank <= 3
@@ -352,20 +337,6 @@ function TeamRow({
           </td>
         );
       })}
-      <td className="px-2 py-2 text-center border-l border-gray-200">
-        <span className="font-mono font-semibold text-purple-700">
-          {team.exercisesDone}
-        </span>
-      </td>
-      {Array.from({ length: exerciseCount }).map((_, i) => (
-        <td key={`e-${i}`} className="px-1 py-2 text-center">
-          {team.exercises[i] ? (
-            <span className="font-mono font-bold text-purple-700">✓</span>
-          ) : (
-            <span className="text-gray-300">—</span>
-          )}
-        </td>
-      ))}
     </motion.tr>
   );
 }

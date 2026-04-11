@@ -59,7 +59,5 @@ export type TimerResponse = TimerState;
 export interface LeaderboardResponse {
   teams: TeamScore[];
   frozen: boolean;
-  exerciseNames: string[];
   taskCount: number;
-  exerciseCount: number;
 }

@@ -2,12 +2,7 @@ import { Hono } from 'hono';
 import { eq } from 'drizzle-orm';
 import { db } from '../db/client';
 import { cities } from '../db/schema';
-import {
-  getLeaderboardForCity,
-  resolveExerciseNames,
-  TASK_COUNT,
-  EXERCISE_COUNT,
-} from '../services/sheets-sync';
+import { getLeaderboardForCity, TASK_COUNT } from '../services/sheets-sync';
 import { authMiddleware, adminMiddleware } from '../middleware/auth';
 import type { JwtPayload } from '../middleware/auth';
 import type { TeamScore } from '@shared/types';
@@ -24,19 +19,6 @@ interface FrozenSnapshot {
 }
 const frozenSnapshots = new Map<string, FrozenSnapshot>();
 
-function parseExerciseNames(row: typeof cities.$inferSelect): string[] | null {
-  if (!row.exerciseNames) return null;
-  try {
-    const parsed: unknown = JSON.parse(row.exerciseNames);
-    if (Array.isArray(parsed) && parsed.every((v) => typeof v === 'string')) {
-      return parsed as string[];
-    }
-  } catch {
-    // fall through
-  }
-  return null;
-}
-
 function shouldAutoFreeze(city: typeof cities.$inferSelect): boolean {
   if (city.timerStatus !== 'running' || !city.startTime) return false;
   const totalSeconds = city.durationMin * 60;
@@ -49,10 +31,6 @@ function shouldAutoFreeze(city: typeof cities.$inferSelect): boolean {
 
 function buildResponse(city: typeof cities.$inferSelect): LeaderboardResponse {
   const snapshot = getLeaderboardForCity(city.id);
-  const exerciseNames = resolveExerciseNames(
-    parseExerciseNames(city),
-    snapshot.exerciseNamesFromSheet,
-  );
 
   let teams: TeamScore[];
   let frozen = false;
@@ -72,9 +50,7 @@ function buildResponse(city: typeof cities.$inferSelect): LeaderboardResponse {
   return {
     teams,
     frozen,
-    exerciseNames,
     taskCount: TASK_COUNT,
-    exerciseCount: EXERCISE_COUNT,
   };
 }
 

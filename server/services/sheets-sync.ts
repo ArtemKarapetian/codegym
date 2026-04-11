@@ -43,18 +43,12 @@ const EXERCISES_COL_START = 14;
 
 interface CityLeaderboard {
   teams: TeamScore[];
-  exerciseNamesFromSheet: string[]; // row-1 labels for exercise cols, if any
 }
 
 const leaderboardStore = new Map<string, CityLeaderboard>();
 
 export function getLeaderboardForCity(cityId: string): CityLeaderboard {
-  return (
-    leaderboardStore.get(cityId) ?? {
-      teams: [],
-      exerciseNamesFromSheet: [],
-    }
-  );
+  return leaderboardStore.get(cityId) ?? { teams: [] };
 }
 
 // ── Sync ──
@@ -102,15 +96,22 @@ function sheetValuesUrl(sheetId: string, range: string): string {
   );
 }
 
-function applyGating(tasksSolved: number, exercisesDone: number): number {
-  // Exercise k unlocks task k+1; the last exercise is optional (task 10 counts
-  // as soon as 8 exercises are done). So unlockCap = exercisesDone >= 8 ? 10
-  // : exercisesDone + 1.
-  const unlockCap =
-    exercisesDone >= EXERCISE_COUNT - 1
-      ? TASK_COUNT
-      : Math.min(TASK_COUNT, exercisesDone + 1);
-  return Math.min(tasksSolved, unlockCap);
+// Per-task gating. Task k (1-indexed) requires min(k-1, 8) exercises: task 1
+// is free, each subsequent task needs one more exercise, and the last one is
+// optional (task 10 counts as soon as 8 exercises are done). A raw-solved
+// task that hasn't met its exercise quota is NOT shown as solved.
+function requiredExercisesForTask(taskIndex1Based: number): number {
+  return Math.min(taskIndex1Based - 1, EXERCISE_COUNT - 1);
+}
+
+function applyPerTaskGating(
+  taskFlags: boolean[],
+  exercisesDone: number,
+): boolean[] {
+  return taskFlags.map((raw, i) => {
+    if (!raw) return false;
+    return exercisesDone >= requiredExercisesForTask(i + 1);
+  });
 }
 
 interface ParsedRow {
@@ -121,22 +122,9 @@ interface ParsedRow {
   penalty: number;
 }
 
-function parseSheet(values: string[][]): {
-  rows: ParsedRow[];
-  exerciseNames: string[];
-} {
+function parseSheet(values: string[][]): { rows: ParsedRow[] } {
   if (!values || values.length < 3) {
-    return { rows: [], exerciseNames: [] };
-  }
-
-  // Row 1 carries merged group headers; individual cells for exercise
-  // columns may contain a per-city name. If a cell is blank, fall back to
-  // a numeric label later.
-  const headerRow = values[0] ?? [];
-  const exerciseNames: string[] = [];
-  for (let i = 0; i < EXERCISE_COUNT; i++) {
-    const raw = (headerRow[EXERCISES_COL_START + i] ?? '').trim();
-    exerciseNames.push(raw);
+    return { rows: [] };
   }
 
   const rows: ParsedRow[] = [];
@@ -161,18 +149,18 @@ function parseSheet(values: string[][]): {
     rows.push({ login, teamName, taskFlags, exerciseFlags, penalty });
   }
 
-  return { rows, exerciseNames };
+  return { rows };
 }
 
 function rowsToTeamScores(rows: ParsedRow[]): TeamScore[] {
   const scores: TeamScore[] = rows.map((row) => {
-    const tasksSolved = row.taskFlags.filter(Boolean).length;
     const exercisesDone = row.exerciseFlags.filter(Boolean).length;
-    const score = applyGating(tasksSolved, exercisesDone);
+    const gatedTaskFlags = applyPerTaskGating(row.taskFlags, exercisesDone);
+    const score = gatedTaskFlags.filter(Boolean).length;
 
     const problems: Record<string, ProblemResult> = {};
     for (let k = 0; k < TASK_COUNT; k++) {
-      problems[PROBLEM_LETTERS[k]] = { solved: row.taskFlags[k] };
+      problems[PROBLEM_LETTERS[k]] = { solved: gatedTaskFlags[k] };
     }
 
     return {
@@ -181,18 +169,13 @@ function rowsToTeamScores(rows: ParsedRow[]): TeamScore[] {
       login: row.login,
       score,
       penalty: row.penalty,
-      tasksSolved,
-      exercisesDone,
       problems,
-      exercises: row.exerciseFlags,
     };
   });
 
   scores.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
-    if (a.penalty !== b.penalty) return a.penalty - b.penalty;
-    if (b.tasksSolved !== a.tasksSolved) return b.tasksSolved - a.tasksSolved;
-    return b.exercisesDone - a.exercisesDone;
+    return a.penalty - b.penalty;
   });
   scores.forEach((t, i) => {
     t.rank = i + 1;
@@ -213,12 +196,9 @@ export async function syncFromSheets(): Promise<SyncResult> {
         const url = sheetValuesUrl(city.sheetId, city.sheetRange);
         const res = await fetchWithRetry(url);
         const data = (await res.json()) as { values?: string[][] };
-        const { rows, exerciseNames } = parseSheet(data.values ?? []);
+        const { rows } = parseSheet(data.values ?? []);
         const teams = rowsToTeamScores(rows);
-        leaderboardStore.set(city.id, {
-          teams,
-          exerciseNamesFromSheet: exerciseNames,
-        });
+        leaderboardStore.set(city.id, { teams });
         result.synced += teams.length;
       } catch (err) {
         result.failed.push({
@@ -231,27 +211,4 @@ export async function syncFromSheets(): Promise<SyncResult> {
   );
 
   return result;
-}
-
-// ── Exercise name resolution ──
-
-export function resolveExerciseNames(
-  cityExerciseNames: string[] | null,
-  fromSheet: string[],
-): string[] {
-  const out: string[] = [];
-  for (let i = 0; i < EXERCISE_COUNT; i++) {
-    const explicit = cityExerciseNames?.[i]?.trim();
-    if (explicit) {
-      out.push(explicit);
-      continue;
-    }
-    const sheetName = fromSheet[i]?.trim();
-    if (sheetName) {
-      out.push(sheetName);
-      continue;
-    }
-    out.push(`Упражнение ${i + 1}`);
-  }
-  return out;
 }
