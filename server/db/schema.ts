@@ -17,6 +17,11 @@ export const cities = sqliteTable('cities', {
   sheetRange: text('sheet_range').notNull().default('Таблица'),
   // JSON array of 9 exercise display names; null falls back to "Упражнение N".
   exerciseNames: text('exercise_names'),
+  // 'sheet' = trust the Штраф column; 'computed' = sum bad attempts from
+  // solved task cells ("+N" means N wrong attempts before the success).
+  penaltyMode: text('penalty_mode', { enum: ['sheet', 'computed'] })
+    .notNull()
+    .default('sheet'),
   createdAt: text('created_at').notNull(),
 });
 

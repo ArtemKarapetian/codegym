@@ -14,8 +14,9 @@ import { toast } from 'sonner';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
+import { Switch } from '@/app/components/ui/switch';
 import { api } from '@/lib/api';
-import type { City, TimerState } from '@shared/types';
+import type { City, PenaltyMode, TimerState } from '@shared/types';
 import type { LeaderboardResponse } from '@shared/api';
 
 function formatRemaining(s: number): string {
@@ -35,6 +36,7 @@ export function CityDetailPage() {
   const [sheetId, setSheetId] = useState('');
   const [sheetRange, setSheetRange] = useState('Таблица');
   const [durationMin, setDurationMin] = useState(240);
+  const [penaltyMode, setPenaltyMode] = useState<PenaltyMode>('sheet');
   const [remainingInput, setRemainingInput] = useState('');
 
   const refreshCity = useCallback(async () => {
@@ -44,6 +46,7 @@ export function CityDetailPage() {
     setSheetId(c.sheetId ?? '');
     setSheetRange(c.sheetRange);
     setDurationMin(c.durationMin);
+    setPenaltyMode(c.penaltyMode);
   }, [cityId]);
 
   const refreshTimer = useCallback(async () => {
@@ -155,6 +158,7 @@ export function CityDetailPage() {
         sheetId: sheetId.trim() || null,
         sheetRange: sheetRange.trim() || 'Таблица',
         durationMin,
+        penaltyMode,
       });
       await refreshCity();
       toast.success('Сохранено');
@@ -311,6 +315,25 @@ export function CityDetailPage() {
               value={durationMin}
               onChange={(e) => setDurationMin(Number(e.target.value))}
             />
+          </div>
+        </div>
+        <div className="mt-4 flex items-start gap-3 p-3 rounded-lg bg-gray-50 border border-gray-200">
+          <Switch
+            id="penalty-mode"
+            checked={penaltyMode === 'computed'}
+            onCheckedChange={(checked) =>
+              setPenaltyMode(checked ? 'computed' : 'sheet')
+            }
+          />
+          <div className="flex-1">
+            <Label htmlFor="penalty-mode" className="cursor-pointer">
+              Считать штраф самому
+            </Label>
+            <p className="text-xs text-gray-500 mt-1">
+              {penaltyMode === 'computed'
+                ? 'Штраф = сумма неудачных попыток по решённым задачам (+2 = 2 штрафа, + = 0). Колонка «Штраф» в таблице игнорируется.'
+                : 'Штраф читается из колонки «Штраф» в Google Sheet как есть.'}
+            </p>
           </div>
         </div>
       </section>

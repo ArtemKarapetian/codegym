@@ -1,0 +1,1 @@
+ALTER TABLE `cities` ADD `penalty_mode` text DEFAULT 'sheet' NOT NULL;

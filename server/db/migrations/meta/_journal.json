@@ -78,6 +78,13 @@
       "when": 1775902620125,
       "tag": "0010_leaderboard_cleanup",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1775905040492,
+      "tag": "0011_add_penalty_mode",
+      "breakpoints": true
     }
   ]
 }

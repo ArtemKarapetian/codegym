@@ -34,6 +34,7 @@ function rowToCity(row: typeof cities.$inferSelect): City {
     sheetId: row.sheetId ?? null,
     sheetRange: row.sheetRange,
     exerciseNames,
+    penaltyMode: row.penaltyMode as City['penaltyMode'],
     createdAt: row.createdAt,
   };
 }
@@ -106,6 +107,7 @@ router.post('/', authMiddleware, adminMiddleware, async (c) => {
       exerciseNames: parsed.data.exerciseNames
         ? JSON.stringify(parsed.data.exerciseNames)
         : null,
+      penaltyMode: parsed.data.penaltyMode ?? 'sheet',
       timerStatus: 'pending',
       createdAt: now,
     })
@@ -143,6 +145,8 @@ router.put('/:id', authMiddleware, adminMiddleware, async (c) => {
       ? JSON.stringify(parsed.data.exerciseNames)
       : null;
   }
+  if (parsed.data.penaltyMode !== undefined)
+    patch.penaltyMode = parsed.data.penaltyMode;
 
   db.update(cities).set(patch).where(eq(cities.id, id)).run();
 

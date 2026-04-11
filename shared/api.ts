@@ -1,4 +1,4 @@
-import type { City, User, TeamScore, TimerState } from './types';
+import type { City, PenaltyMode, User, TeamScore, TimerState } from './types';
 
 // ── Auth ──
 
@@ -26,6 +26,7 @@ export interface CreateCityRequest {
   sheetRange?: string;
   exerciseNames?: string[] | null;
   contestDate?: string | null;
+  penaltyMode?: PenaltyMode;
 }
 
 export interface UpdateCityRequest {
@@ -36,6 +37,7 @@ export interface UpdateCityRequest {
   sheetRange?: string;
   exerciseNames?: string[] | null;
   contestDate?: string | null;
+  penaltyMode?: PenaltyMode;
 }
 
 export interface PublicCity {

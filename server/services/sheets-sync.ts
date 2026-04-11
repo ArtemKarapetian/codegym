@@ -59,12 +59,26 @@ export interface SyncResult {
   failed: { cityId: string; cityName: string; error: string }[];
 }
 
-function isSolved(val: string): boolean {
+interface TaskCell {
+  solved: boolean;
+  // Wrong attempts before success for a solved task ("+" = 0, "+2" = 2).
+  // Undefined semantics for unsolved cells — we don't use it there.
+  badAttempts: number;
+}
+
+function parseTaskCell(val: string): TaskCell {
   const v = (val ?? '').trim();
-  if (!v) return false;
-  // "+", "+1", "+2" = solved. "-", "-1" = not solved.
-  if (v.startsWith('+')) return true;
-  return false;
+  if (!v) return { solved: false, badAttempts: 0 };
+  if (v.startsWith('+')) {
+    const rest = v.slice(1);
+    const n = rest ? Number(rest) : 0;
+    return { solved: true, badAttempts: Number.isFinite(n) ? n : 0 };
+  }
+  return { solved: false, badAttempts: 0 };
+}
+
+function isSolved(val: string): boolean {
+  return parseTaskCell(val).solved;
 }
 
 function parsePenalty(val: string): number {
@@ -117,9 +131,9 @@ function applyPerTaskGating(
 interface ParsedRow {
   login: string;
   teamName: string;
-  taskFlags: boolean[];
+  taskCells: TaskCell[];
   exerciseFlags: boolean[];
-  penalty: number;
+  sheetPenalty: number;
 }
 
 function parseSheet(values: string[][]): { rows: ParsedRow[] } {
@@ -134,9 +148,9 @@ function parseSheet(values: string[][]): { rows: ParsedRow[] } {
     if (!login) continue;
     const teamName = (r[1] ?? '').trim() || login;
 
-    const taskFlags: boolean[] = [];
+    const taskCells: TaskCell[] = [];
     for (let k = 0; k < TASK_COUNT; k++) {
-      taskFlags.push(isSolved(r[TASKS_COL_START + k] ?? ''));
+      taskCells.push(parseTaskCell(r[TASKS_COL_START + k] ?? ''));
     }
 
     const exerciseFlags: boolean[] = [];
@@ -144,19 +158,38 @@ function parseSheet(values: string[][]): { rows: ParsedRow[] } {
       exerciseFlags.push(isSolved(r[EXERCISES_COL_START + k] ?? ''));
     }
 
-    const penalty = parsePenalty(r[PENALTY_COL] ?? '');
+    const sheetPenalty = parsePenalty(r[PENALTY_COL] ?? '');
 
-    rows.push({ login, teamName, taskFlags, exerciseFlags, penalty });
+    rows.push({ login, teamName, taskCells, exerciseFlags, sheetPenalty });
   }
 
   return { rows };
 }
 
-function rowsToTeamScores(rows: ParsedRow[]): TeamScore[] {
+type PenaltyMode = 'sheet' | 'computed';
+
+function rowsToTeamScores(
+  rows: ParsedRow[],
+  penaltyMode: PenaltyMode,
+): TeamScore[] {
   const scores: TeamScore[] = rows.map((row) => {
     const exercisesDone = row.exerciseFlags.filter(Boolean).length;
-    const gatedTaskFlags = applyPerTaskGating(row.taskFlags, exercisesDone);
+    const taskFlags = row.taskCells.map((c) => c.solved);
+    const gatedTaskFlags = applyPerTaskGating(taskFlags, exercisesDone);
     const score = gatedTaskFlags.filter(Boolean).length;
+
+    // In 'computed' mode penalty = sum of bad attempts over gated-solved
+    // tasks. Only count attempts for tasks that actually count — solving a
+    // task that's still locked by gating shouldn't add penalty.
+    let penalty: number;
+    if (penaltyMode === 'computed') {
+      penalty = 0;
+      for (let k = 0; k < TASK_COUNT; k++) {
+        if (gatedTaskFlags[k]) penalty += row.taskCells[k].badAttempts;
+      }
+    } else {
+      penalty = row.sheetPenalty;
+    }
 
     const problems: Record<string, ProblemResult> = {};
     for (let k = 0; k < TASK_COUNT; k++) {
@@ -168,7 +201,7 @@ function rowsToTeamScores(rows: ParsedRow[]): TeamScore[] {
       teamName: row.teamName,
       login: row.login,
       score,
-      penalty: row.penalty,
+      penalty,
       problems,
     };
   });
@@ -197,7 +230,7 @@ export async function syncFromSheets(): Promise<SyncResult> {
         const res = await fetchWithRetry(url);
         const data = (await res.json()) as { values?: string[][] };
         const { rows } = parseSheet(data.values ?? []);
-        const teams = rowsToTeamScores(rows);
+        const teams = rowsToTeamScores(rows, city.penaltyMode as PenaltyMode);
         leaderboardStore.set(city.id, { teams });
         result.synced += teams.length;
       } catch (err) {
