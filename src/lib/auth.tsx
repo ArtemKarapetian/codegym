@@ -42,12 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       setToken(res.token);
       setUser(res.user);
-
-      if (res.user.role === 'admin') {
-        navigate('/admin');
-      } else {
-        navigate('/contest');
-      }
+      navigate('/admin');
     },
     [navigate],
   );

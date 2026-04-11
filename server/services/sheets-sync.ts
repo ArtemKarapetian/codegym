@@ -2,73 +2,81 @@ import { db } from '../db/client';
 import { cities } from '../db/schema';
 import type { TeamScore, ProblemResult } from '@shared/types';
 
-function isTruthy(val: string): boolean {
-  const v = val.toUpperCase().trim();
-  return v === 'TRUE' || v === '1' || v === 'YES' || v === 'ДА';
+// ── Layout constants ──
+//
+// Every city sheet follows the same shape:
+//
+//   Row 1: merged group headers ("Логин в Ejudje", "Командa",
+//          "Задачи по программированию", "Сколько задач решено", "Штраф",
+//          "Спортивные задания", "Победители (распределение мест)")
+//   Row 2: sub-column labels (blank, blank, A..J, blank, blank, 1..9, blank)
+//   Row 3+: team rows
+//
+//   Col A  (idx 0): login in ejudge
+//   Col B  (idx 1): team display name (may be blank — fallback to login)
+//   Col C..L (idx 2..11): 10 programming problems A..J
+//   Col M (idx 12): "Сколько задач решено" (ignored — we recount)
+//   Col N (idx 13): penalty
+//   Col O..W (idx 14..22): 9 exercises
+//   Col X (idx 23): winners column (ignored)
+
+export const TASK_COUNT = 10;
+export const EXERCISE_COUNT = 9;
+export const PROBLEM_LETTERS = [
+  'A',
+  'B',
+  'C',
+  'D',
+  'E',
+  'F',
+  'G',
+  'H',
+  'I',
+  'J',
+];
+
+const TASKS_COL_START = 2;
+const PENALTY_COL = 13;
+const EXERCISES_COL_START = 14;
+
+// ── Store ──
+
+interface CityLeaderboard {
+  teams: TeamScore[];
+  exerciseNamesFromSheet: string[]; // row-1 labels for exercise cols, if any
 }
 
-// ── Types ──
+const leaderboardStore = new Map<string, CityLeaderboard>();
 
-interface TeamRow {
-  city: string;
-  team: string;
-  columns: boolean[];
-}
-
-const PROBLEM_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
-
-// ── In-memory leaderboard store ──
-
-// cityId -> TeamScore[]
-const leaderboardStore = new Map<string, TeamScore[]>();
-
-// cityName -> teamNames (from last sync, for account generation)
-const teamsByCity = new Map<string, string[]>();
-
-export function getTeamsByCity(): Map<string, string[]> {
-  return teamsByCity;
-}
-
-export function getLeaderboardForCity(cityId: string): TeamScore[] {
-  return leaderboardStore.get(cityId) ?? [];
-}
-
-export function getCityStats() {
-  const stats = new Map<
-    string,
-    {
-      teams: number;
-      totalSolved: number;
-      maxSolved: number;
-      topTeam: string | null;
+export function getLeaderboardForCity(cityId: string): CityLeaderboard {
+  return (
+    leaderboardStore.get(cityId) ?? {
+      teams: [],
+      exerciseNamesFromSheet: [],
     }
-  >();
-  for (const [cityId, teams] of leaderboardStore) {
-    let maxSolved = 0;
-    let topTeam: string | null = null;
-    let totalSolved = 0;
-    for (const t of teams) {
-      totalSolved += t.solved;
-      if (t.solved > maxSolved) {
-        maxSolved = t.solved;
-        topTeam = t.teamName;
-      }
-    }
-    stats.set(cityId, {
-      teams: teams.length,
-      totalSolved,
-      maxSolved,
-      topTeam,
-    });
-  }
-  return stats;
+  );
 }
 
 // ── Sync ──
 
 export interface SyncResult {
   synced: number;
-  skippedNoCity: string[];
+  cities: number;
+  failed: { cityId: string; cityName: string; error: string }[];
+}
+
+function isSolved(val: string): boolean {
+  const v = (val ?? '').trim();
+  if (!v) return false;
+  // "+", "+1", "+2" = solved. "-", "-1" = not solved.
+  if (v.startsWith('+')) return true;
+  return false;
+}
+
+function parsePenalty(val: string): number {
+  if (!val) return 0;
+  const n = Number(val.replace(/\s/g, '').replace(',', '.'));
+  return Number.isFinite(n) ? n : 0;
 }
 
 async function fetchWithRetry(url: string, retries = 3): Promise<Response> {
@@ -79,142 +87,171 @@ async function fetchWithRetry(url: string, retries = 3): Promise<Response> {
       return r;
     } catch (err) {
       if (i === retries - 1) throw err;
-      await new Promise((resolve) => setTimeout(resolve, 2000 * (i + 1)));
+      await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1)));
     }
   }
   throw new Error('Unreachable');
 }
 
-/** Parse Google Sheets API JSON response into TeamRow[] */
-function parseApiResponse(data: { values?: string[][] }): TeamRow[] {
-  const rows = data.values;
-  if (!rows || rows.length < 2) return [];
+function sheetValuesUrl(sheetId: string, range: string): string {
+  const apiKey = process.env.GOOGLE_SHEETS_API_KEY;
+  if (!apiKey) throw new Error('Missing env: GOOGLE_SHEETS_API_KEY');
+  return (
+    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/` +
+    `${encodeURIComponent(range)}?key=${apiKey}`
+  );
+}
 
-  const results: TeamRow[] = [];
-  for (let i = 1; i < rows.length; i++) {
-    const r = rows[i];
-    const city = (r[1] ?? '').trim();
-    const team = (r[2] ?? '').trim();
-    if (!city || !team) continue;
+function applyGating(tasksSolved: number, exercisesDone: number): number {
+  // Exercise k unlocks task k+1; the last exercise is optional (task 10 counts
+  // as soon as 8 exercises are done). So unlockCap = exercisesDone >= 8 ? 10
+  // : exercisesDone + 1.
+  const unlockCap =
+    exercisesDone >= EXERCISE_COUNT - 1
+      ? TASK_COUNT
+      : Math.min(TASK_COUNT, exercisesDone + 1);
+  return Math.min(tasksSolved, unlockCap);
+}
 
-    const columns: boolean[] = [];
-    for (let j = 3; j < 3 + 9; j++) {
-      columns.push(isTruthy(r[j] ?? ''));
-    }
-    results.push({ city, team, columns });
+interface ParsedRow {
+  login: string;
+  teamName: string;
+  taskFlags: boolean[];
+  exerciseFlags: boolean[];
+  penalty: number;
+}
+
+function parseSheet(values: string[][]): {
+  rows: ParsedRow[];
+  exerciseNames: string[];
+} {
+  if (!values || values.length < 3) {
+    return { rows: [], exerciseNames: [] };
   }
-  return results;
+
+  // Row 1 carries merged group headers; individual cells for exercise
+  // columns may contain a per-city name. If a cell is blank, fall back to
+  // a numeric label later.
+  const headerRow = values[0] ?? [];
+  const exerciseNames: string[] = [];
+  for (let i = 0; i < EXERCISE_COUNT; i++) {
+    const raw = (headerRow[EXERCISES_COL_START + i] ?? '').trim();
+    exerciseNames.push(raw);
+  }
+
+  const rows: ParsedRow[] = [];
+  for (let i = 2; i < values.length; i++) {
+    const r = values[i] ?? [];
+    const login = (r[0] ?? '').trim();
+    if (!login) continue;
+    const teamName = (r[1] ?? '').trim() || login;
+
+    const taskFlags: boolean[] = [];
+    for (let k = 0; k < TASK_COUNT; k++) {
+      taskFlags.push(isSolved(r[TASKS_COL_START + k] ?? ''));
+    }
+
+    const exerciseFlags: boolean[] = [];
+    for (let k = 0; k < EXERCISE_COUNT; k++) {
+      exerciseFlags.push(isSolved(r[EXERCISES_COL_START + k] ?? ''));
+    }
+
+    const penalty = parsePenalty(r[PENALTY_COL] ?? '');
+
+    rows.push({ login, teamName, taskFlags, exerciseFlags, penalty });
+  }
+
+  return { rows, exerciseNames };
+}
+
+function rowsToTeamScores(rows: ParsedRow[]): TeamScore[] {
+  const scores: TeamScore[] = rows.map((row) => {
+    const tasksSolved = row.taskFlags.filter(Boolean).length;
+    const exercisesDone = row.exerciseFlags.filter(Boolean).length;
+    const score = applyGating(tasksSolved, exercisesDone);
+
+    const problems: Record<string, ProblemResult> = {};
+    for (let k = 0; k < TASK_COUNT; k++) {
+      problems[PROBLEM_LETTERS[k]] = { solved: row.taskFlags[k] };
+    }
+
+    return {
+      rank: 0,
+      teamName: row.teamName,
+      login: row.login,
+      score,
+      penalty: row.penalty,
+      tasksSolved,
+      exercisesDone,
+      problems,
+      exercises: row.exerciseFlags,
+    };
+  });
+
+  scores.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    if (a.penalty !== b.penalty) return a.penalty - b.penalty;
+    if (b.tasksSolved !== a.tasksSolved) return b.tasksSolved - a.tasksSolved;
+    return b.exercisesDone - a.exercisesDone;
+  });
+  scores.forEach((t, i) => {
+    t.rank = i + 1;
+  });
+
+  return scores;
 }
 
 export async function syncFromSheets(): Promise<SyncResult> {
-  const { tasksUrl, exercisesUrl } = getSheetUrls();
-
-  const [tasksRes, exercisesRes] = await Promise.all([
-    fetchWithRetry(tasksUrl),
-    fetchWithRetry(exercisesUrl),
-  ]);
-
-  const tasksData = (await tasksRes.json()) as { values?: string[][] };
-  const exercisesData = (await exercisesRes.json()) as { values?: string[][] };
-
-  const taskRows = parseApiResponse(tasksData);
-  const exerciseRows = parseApiResponse(exercisesData);
-
-  // Build exercise lookup: city+team -> columns
-  const exerciseMap = new Map<string, boolean[]>();
-  for (const row of exerciseRows) {
-    exerciseMap.set(`${row.city}||${row.team}`, row.columns);
-  }
-
-  // Build city name -> id map from DB
   const allCities = db.select().from(cities).all();
-  const cityMap = new Map<string, string>();
-  for (const c of allCities) {
-    cityMap.set(c.name.toLowerCase(), c.id);
-  }
+  const result: SyncResult = { synced: 0, cities: 0, failed: [] };
 
-  // Group scores by cityId + collect team names by city
-  const byCityId = new Map<string, TeamScore[]>();
-  const newTeamsByCity = new Map<string, string[]>();
-  const result: SyncResult = { synced: 0, skippedNoCity: [] };
-
-  for (const taskRow of taskRows) {
-    const cityId = cityMap.get(taskRow.city.toLowerCase());
-    if (!cityId) {
-      if (!result.skippedNoCity.includes(taskRow.city)) {
-        result.skippedNoCity.push(taskRow.city);
+  await Promise.all(
+    allCities.map(async (city) => {
+      if (!city.sheetId) return;
+      result.cities++;
+      try {
+        const url = sheetValuesUrl(city.sheetId, city.sheetRange);
+        const res = await fetchWithRetry(url);
+        const data = (await res.json()) as { values?: string[][] };
+        const { rows, exerciseNames } = parseSheet(data.values ?? []);
+        const teams = rowsToTeamScores(rows);
+        leaderboardStore.set(city.id, {
+          teams,
+          exerciseNamesFromSheet: exerciseNames,
+        });
+        result.synced += teams.length;
+      } catch (err) {
+        result.failed.push({
+          cityId: city.id,
+          cityName: city.name,
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
-      continue;
-    }
-
-    const exercises =
-      exerciseMap.get(`${taskRow.city}||${taskRow.team}`) ??
-      Array(9).fill(false);
-    const tasksDone = taskRow.columns.filter(Boolean).length;
-    const exercisesDone = exercises.filter(Boolean).length;
-    const scored = Math.min(tasksDone, exercisesDone + 1);
-
-    // Build problems map
-    const problems: Record<string, ProblemResult> = {};
-    for (let i = 0; i < 9; i++) {
-      if (taskRow.columns[i]) {
-        problems[PROBLEM_LETTERS[i]] = {
-          score: 1,
-          penalty: 0,
-          attempts: 1,
-          solved: true,
-        };
-      }
-    }
-
-    // Track teams by city name
-    if (!newTeamsByCity.has(taskRow.city)) newTeamsByCity.set(taskRow.city, []);
-    newTeamsByCity.get(taskRow.city)!.push(taskRow.team);
-
-    if (!byCityId.has(cityId)) byCityId.set(cityId, []);
-    byCityId.get(cityId)!.push({
-      rank: 0, // computed below
-      teamName: taskRow.team,
-      score: scored,
-      penalty: 0,
-      solved: scored,
-      problems,
-    });
-
-    result.synced++;
-  }
-
-  // Sort and assign ranks, then store
-  for (const [cityId, teams] of byCityId) {
-    teams.sort((a, b) => b.solved - a.solved || a.penalty - b.penalty);
-    teams.forEach((t, i) => (t.rank = i + 1));
-    leaderboardStore.set(cityId, teams);
-  }
-
-  // Update teams by city
-  teamsByCity.clear();
-  for (const [city, teams] of newTeamsByCity) {
-    teamsByCity.set(city, teams);
-  }
+    }),
+  );
 
   return result;
 }
 
-// ── Sheet URL helpers ──
+// ── Exercise name resolution ──
 
-export function getSheetUrls() {
-  const apiKey = process.env.GOOGLE_SHEETS_API_KEY;
-  const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
-
-  if (!apiKey || !spreadsheetId) {
-    throw new Error(
-      'Missing env: GOOGLE_SHEETS_API_KEY, GOOGLE_SHEETS_SPREADSHEET_ID',
-    );
+export function resolveExerciseNames(
+  cityExerciseNames: string[] | null,
+  fromSheet: string[],
+): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < EXERCISE_COUNT; i++) {
+    const explicit = cityExerciseNames?.[i]?.trim();
+    if (explicit) {
+      out.push(explicit);
+      continue;
+    }
+    const sheetName = fromSheet[i]?.trim();
+    if (sheetName) {
+      out.push(sheetName);
+      continue;
+    }
+    out.push(`Упражнение ${i + 1}`);
   }
-
-  const base = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values`;
-  return {
-    tasksUrl: `${base}/${encodeURIComponent('Задачи')}?key=${apiKey}`,
-    exercisesUrl: `${base}/${encodeURIComponent('Упражнения')}?key=${apiKey}`,
-  };
+  return out;
 }

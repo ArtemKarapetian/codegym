@@ -5,7 +5,6 @@ import type { UserRole } from '@shared/types';
 export interface JwtPayload {
   sub: string;
   role: UserRole;
-  cityId: string | null;
 }
 
 const secret = new TextEncoder().encode(

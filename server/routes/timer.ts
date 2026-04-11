@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '../db/client';
 import { cities } from '../db/schema';
 import { authMiddleware, adminMiddleware } from '../middleware/auth';
+import { clearFreeze } from './leaderboard';
 import type { JwtPayload } from '../middleware/auth';
 import type { TimerState } from '@shared/types';
 
@@ -94,6 +95,10 @@ router.post(
       })
       .where(eq(cities.id, cityId))
       .run();
+
+    // A fresh start drops any leftover freeze snapshot so the new contest
+    // begins live.
+    clearFreeze(cityId);
 
     const updated = db
       .select()

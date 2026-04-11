@@ -1,40 +1,50 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
-import { Trophy, Medal, Maximize, Minimize } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import {
+  ArrowLeft,
+  Trophy,
+  Medal,
+  Maximize,
+  Minimize,
+  Snowflake,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import type { TeamScore, ProblemResult, City } from '@shared/types';
-
-const PROBLEMS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
+import type { TeamScore, City, TimerState } from '@shared/types';
+import type { LeaderboardResponse } from '@shared/api';
 
 export function PublicLeaderboard() {
   const { cityId } = useParams<{ cityId: string }>();
-  const [leaderboard, setLeaderboard] = useState<TeamScore[]>([]);
+  const [city, setCity] = useState<City | null>(null);
+  const [data, setData] = useState<LeaderboardResponse | null>(null);
   const [lastUpdate, setLastUpdate] = useState('');
-  const [frozen, setFrozen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [cursorHidden, setCursorHidden] = useState(false);
-  const [timeRemaining, setTimeRemaining] = useState<string | null>(null);
+  const [timeRemaining, setTimeRemaining] = useState<string>('--:--:--');
   const [timerStatus, setTimerStatus] = useState<string>('pending');
-  const [isMinsk, setIsMinsk] = useState(false);
-  const [funPointsMap, setFunPointsMap] = useState<Record<string, number>>({});
-  const [sortByFun, setSortByFun] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const cursorTimer = useRef<ReturnType<typeof setTimeout>>();
+  const cursorTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
   const remainingRef = useRef(0);
 
-  // Fetch leaderboard
+  // City metadata (name, etc.)
+  useEffect(() => {
+    if (!cityId) return;
+    fetch(`/api/cities/public/${cityId}`)
+      .then((r) => r.json())
+      .then((c: City) => setCity(c))
+      .catch(console.error);
+  }, [cityId]);
+
+  // Leaderboard polling
   useEffect(() => {
     if (!cityId) return;
 
     const fetchLeaderboard = () => {
       fetch(`/api/public/cities/${cityId}/leaderboard`)
-        .then((r) => {
-          const isFrozen = r.headers.get('X-Leaderboard-Frozen') === '1';
-          setFrozen(isFrozen);
-          return r.json();
-        })
-        .then((data) => {
-          setLeaderboard(data);
+        .then((r) => r.json())
+        .then((body: LeaderboardResponse) => {
+          setData(body);
           setLastUpdate(
             new Date().toLocaleTimeString('ru-RU', {
               hour: '2-digit',
@@ -51,34 +61,33 @@ export function PublicLeaderboard() {
     return () => clearInterval(interval);
   }, [cityId]);
 
-  // Poll timer
+  // Timer polling + local tick
   useEffect(() => {
     if (!cityId) return;
 
     const formatTime = (s: number) => {
-      const h = Math.floor(s / 3600);
-      const m = Math.floor((s % 3600) / 60);
-      const sec = s % 60;
+      const safe = Math.max(0, s);
+      const h = Math.floor(safe / 3600);
+      const m = Math.floor((safe % 3600) / 60);
+      const sec = safe % 60;
       return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
     };
 
     const fetchTimer = () => {
       fetch(`/api/public/cities/${cityId}/timer`)
         .then((r) => r.json())
-        .then((data: { status: string; remainingSeconds: number }) => {
-          setTimerStatus(data.status);
-          remainingRef.current = data.remainingSeconds;
-          setTimeRemaining(formatTime(data.remainingSeconds));
+        .then((t: TimerState) => {
+          setTimerStatus(t.status);
+          remainingRef.current = t.remainingSeconds;
+          setTimeRemaining(formatTime(t.remainingSeconds));
         })
         .catch(console.error);
     };
 
     fetchTimer();
     const poll = setInterval(fetchTimer, 10000);
-
-    // Local tick every second
     const tick = setInterval(() => {
-      if (remainingRef.current > 0) {
+      if (timerStatus === 'running' && remainingRef.current > 0) {
         remainingRef.current--;
         setTimeRemaining(formatTime(remainingRef.current));
       }
@@ -88,41 +97,15 @@ export function PublicLeaderboard() {
       clearInterval(poll);
       clearInterval(tick);
     };
-  }, [cityId]);
+  }, [cityId, timerStatus]);
 
-  // Detect Minsk and fetch fun points
-  useEffect(() => {
-    if (!cityId) return;
-
-    fetch(`/api/cities/public`)
-      .then((r) => r.json())
-      .then((cities: City[]) => {
-        const city = cities.find((c) => c.id === cityId);
-        if (city?.name?.toLowerCase().includes('минск')) {
-          setIsMinsk(true);
-        }
-      })
-      .catch(console.error);
-
-    const fetchFun = () => {
-      fetch(`/api/public/cities/${cityId}/fun-points`)
-        .then((r) => r.json())
-        .then((data: Record<string, number>) => setFunPointsMap(data))
-        .catch(console.error);
-    };
-    fetchFun();
-    const funInterval = setInterval(fetchFun, 30000);
-    return () => clearInterval(funInterval);
-  }, [cityId]);
-
-  // Track fullscreen state
+  // Fullscreen hooks
   useEffect(() => {
     const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', onFsChange);
     return () => document.removeEventListener('fullscreenchange', onFsChange);
   }, []);
 
-  // Auto-hide cursor after 3s of inactivity
   const resetCursorTimer = useCallback(() => {
     setCursorHidden(false);
     clearTimeout(cursorTimer.current);
@@ -146,72 +129,14 @@ export function PublicLeaderboard() {
     }
   };
 
-  const sortedLeaderboard = useMemo(() => {
-    if (!sortByFun) return leaderboard;
-    const copy = [...leaderboard];
-    copy.sort(
-      (a, b) =>
-        (funPointsMap[b.teamName] ?? 0) - (funPointsMap[a.teamName] ?? 0),
-    );
-    return copy.map((t, i) => ({ ...t, rank: i + 1 }));
-  }, [leaderboard, sortByFun, funPointsMap]);
+  const teams = data?.teams ?? [];
+  const frozen = data?.frozen ?? false;
+  const taskCount = data?.taskCount ?? 10;
+  const exerciseNames = data?.exerciseNames ?? [];
 
-  const getRankDisplay = (rank: number) => {
-    switch (rank) {
-      case 1:
-        return <Medal className="w-6 h-6 text-yellow-500" />;
-      case 2:
-        return <Medal className="w-6 h-6 text-gray-400" />;
-      case 3:
-        return <Medal className="w-6 h-6 text-amber-600" />;
-      default:
-        return (
-          <span className="font-mono font-bold text-gray-500">{rank}</span>
-        );
-    }
-  };
-
-  const renderProblemCell = (
-    problem: ProblemResult | undefined,
-    key: string,
-  ) => {
-    if (!problem) {
-      return (
-        <td key={key} className="px-1 py-2 text-center text-gray-300">
-          —
-        </td>
-      );
-    }
-
-    if (problem.solved) {
-      return (
-        <td key={key} className="px-1 py-2 text-center">
-          <div className="inline-flex flex-col items-center">
-            <span className="font-mono font-bold text-green-700">
-              +{problem.attempts === 1 ? '' : problem.attempts - 1}
-            </span>
-            {problem.penalty > 0 && (
-              <span className="text-[10px] text-gray-400 font-mono">
-                {problem.penalty}
-              </span>
-            )}
-          </div>
-        </td>
-      );
-    }
-
-    return (
-      <td key={key} className="px-1 py-2 text-center">
-        <span className="font-mono text-red-400">-{problem.attempts}</span>
-      </td>
-    );
-  };
-
-  const getRowBg = (rank: number) => {
-    if (rank <= 3) return 'rgba(255,221,45,0.15)';
-    if (rank % 2 === 0) return 'rgba(255,221,45,0.05)';
-    return '#ffffff';
-  };
+  const taskLetters = Array.from({ length: taskCount }, (_, i) =>
+    String.fromCharCode(65 + i),
+  );
 
   return (
     <div
@@ -226,16 +151,33 @@ export function PublicLeaderboard() {
       >
         <div
           className="relative flex items-center justify-between w-full mx-auto"
-          style={{ maxWidth: '80rem' }}
+          style={{ maxWidth: '90rem' }}
         >
-          <img src="/logo.png" alt="Код спорта" className="h-5" />
-          <h1 className="absolute left-1/2 -translate-x-1/2 text-2xl font-bold text-black">
-            Лидерборд
+          <Link
+            to="/"
+            className="flex items-center gap-2 text-black/80 hover:text-black transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <img src="/logo.png" alt="Код спорта" className="h-5" />
+          </Link>
+          <h1 className="absolute left-1/2 -translate-x-1/2 text-xl md:text-2xl font-bold text-black">
+            {city?.name ? `Лидерборд — ${city.name}` : 'Лидерборд'}
           </h1>
           <div className="flex items-center gap-3">
-            {timerStatus === 'running' && timeRemaining && (
+            {frozen && (
+              <span className="flex items-center gap-1.5 bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full text-xs font-semibold">
+                <Snowflake className="w-3.5 h-3.5" />
+                Заморожен
+              </span>
+            )}
+            {timerStatus === 'running' && (
               <span className="font-mono font-bold text-black/80 text-lg">
                 {timeRemaining}
+              </span>
+            )}
+            {timerStatus === 'paused' && (
+              <span className="font-mono font-bold text-black/60 text-lg">
+                {timeRemaining} · пауза
               </span>
             )}
             {timerStatus === 'finished' && (
@@ -243,10 +185,15 @@ export function PublicLeaderboard() {
                 Завершён
               </span>
             )}
+            {timerStatus === 'pending' && (
+              <span className="font-semibold text-black/60 text-sm">
+                Ожидание
+              </span>
+            )}
             <button
               onClick={toggleFullscreen}
               className="p-2 rounded-lg hover:bg-black/10 transition-colors"
-              title={isFullscreen ? 'Выйти из полноэкранного' : 'Полный экран'}
+              title={isFullscreen ? 'Выйти' : 'Полный экран'}
             >
               {isFullscreen ? (
                 <Minimize className="w-5 h-5" />
@@ -260,11 +207,11 @@ export function PublicLeaderboard() {
 
       {/* Table */}
       <div
-        className="flex-1 min-h-0 mx-auto px-4 py-4 w-full"
-        style={{ maxWidth: '80rem' }}
+        className="flex-1 min-h-0 mx-auto px-4 py-4 w-full overflow-auto"
+        style={{ maxWidth: '90rem' }}
       >
-        <div className="rounded-xl border border-gray-200 overflow-hidden h-full">
-          <table className="w-full text-sm table-fixed">
+        <div className="rounded-xl border border-gray-200 overflow-hidden">
+          <table className="w-full text-sm">
             <thead>
               <tr
                 style={{ backgroundColor: 'rgba(255,221,45,0.2)' }}
@@ -273,103 +220,55 @@ export function PublicLeaderboard() {
                 <th className="px-2 py-2 text-center w-10 font-semibold text-gray-600">
                   #
                 </th>
-                <th className="px-2 py-2 text-left font-semibold text-gray-600">
+                <th className="px-3 py-2 text-left font-semibold text-gray-600 min-w-[12rem]">
                   Команда
                 </th>
-                <th
-                  className={`px-1 py-2 text-center w-10 font-semibold cursor-pointer select-none ${
-                    !sortByFun
-                      ? 'text-gray-900'
-                      : 'text-gray-400 hover:text-gray-600'
-                  }`}
-                  onClick={() => setSortByFun(false)}
-                  title="Сортировка по решённым задачам"
-                >
-                  Σ {!sortByFun && isMinsk ? '▼' : ''}
+                <th className="px-2 py-2 text-center w-14 font-semibold text-gray-900">
+                  Σ
                 </th>
-                <th className="px-1 py-2 text-center w-12 font-semibold text-gray-600">
+                <th className="px-2 py-2 text-center w-16 font-semibold text-gray-600">
                   Штраф
                 </th>
-                {PROBLEMS.map((p) => (
+                {taskLetters.map((p) => (
                   <th
-                    key={p}
-                    className="px-1 py-2 text-center w-10 font-bold text-gray-700"
+                    key={`task-${p}`}
+                    className="px-1 py-2 text-center w-9 font-bold text-gray-700"
                   >
                     {p}
                   </th>
                 ))}
-                {isMinsk && (
+                <th className="px-2 py-2 text-center w-20 font-semibold text-gray-600 border-l border-gray-200">
+                  Упр.
+                </th>
+                {exerciseNames.map((name, i) => (
                   <th
-                    className="px-2 py-3 text-center w-16 font-bold text-purple-700 cursor-pointer hover:text-purple-900 select-none"
-                    onClick={() => setSortByFun((v) => !v)}
-                    title="Нажми для сортировки по Fun"
+                    key={`ex-${i}`}
+                    className="px-1 py-2 text-center w-9 font-semibold text-purple-700"
+                    title={name}
                   >
-                    Fun {sortByFun ? '▼' : ''}
+                    {i + 1}
                   </th>
-                )}
+                ))}
               </tr>
             </thead>
             <tbody>
               <AnimatePresence initial={false}>
-                {sortedLeaderboard.map((team) => (
-                  <motion.tr
-                    key={team.teamName}
-                    layout
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 20 }}
-                    transition={{
-                      layout: { type: 'spring', stiffness: 300, damping: 30 },
-                      opacity: { duration: 0.3 },
-                    }}
-                    className="border-b border-gray-100"
-                    style={{
-                      backgroundColor: getRowBg(team.rank),
-                    }}
-                  >
-                    <td className="px-2 py-2 text-center">
-                      {getRankDisplay(team.rank)}
-                    </td>
-                    <td className="px-2 py-2">
-                      <span
-                        className={`font-semibold text-sm ${team.rank <= 3 ? 'text-black' : 'text-gray-800'}`}
-                      >
-                        {team.teamName}
-                      </span>
-                    </td>
-                    <td className="px-1 py-2 text-center">
-                      <span className="font-mono font-bold">{team.solved}</span>
-                    </td>
-                    <td className="px-1 py-2 text-center">
-                      <span className="font-mono text-red-600 text-xs">
-                        {team.penalty}
-                      </span>
-                    </td>
-                    {PROBLEMS.map((p) =>
-                      renderProblemCell(
-                        team.problems?.[p] as ProblemResult | undefined,
-                        p,
-                      ),
-                    )}
-                    {isMinsk && (
-                      <td className="px-2 py-3 text-center">
-                        <span className="font-mono font-bold text-purple-700">
-                          {(funPointsMap[team.teamName] ?? 0) % 1 === 0
-                            ? (funPointsMap[team.teamName] ?? 0)
-                            : (funPointsMap[team.teamName] ?? 0).toFixed(1)}
-                        </span>
-                      </td>
-                    )}
-                  </motion.tr>
+                {teams.map((team) => (
+                  <TeamRow
+                    key={team.login}
+                    team={team}
+                    taskLetters={taskLetters}
+                    exerciseCount={exerciseNames.length}
+                  />
                 ))}
               </AnimatePresence>
             </tbody>
           </table>
 
-          {sortedLeaderboard.length === 0 && (
+          {teams.length === 0 && (
             <div className="flex flex-col items-center justify-center py-24 text-gray-400">
               <Trophy className="w-16 h-16 mb-4 opacity-20" />
-              <p className="text-lg">Загрузка...</p>
+              <p className="text-lg">Нет данных</p>
             </div>
           )}
         </div>
@@ -386,23 +285,94 @@ export function PublicLeaderboard() {
             решено
           </span>
           <span>
-            <span className="font-mono font-bold text-green-700">+2</span> —
-            решено с 2 неуд. попытками
+            <span className="font-mono text-gray-300">—</span> — нет
           </span>
-          <span>
-            <span className="font-mono text-red-400">-1</span> — не решено, 1
-            попытка
+          <span className="text-purple-600">
+            упражнения — столбцы 1…9 (последнее опционально)
           </span>
         </div>
-        <div className="flex items-center gap-3">
-          {frozen && (
-            <span className="text-blue-600 font-semibold">
-              Таблица заморожена
-            </span>
-          )}
-          <span>Обновлено: {lastUpdate || '...'}</span>
-        </div>
+        <span>Обновлено: {lastUpdate || '...'}</span>
       </div>
     </div>
   );
+}
+
+function TeamRow({
+  team,
+  taskLetters,
+  exerciseCount,
+}: {
+  team: TeamScore;
+  taskLetters: string[];
+  exerciseCount: number;
+}) {
+  const rowBg =
+    team.rank <= 3
+      ? 'rgba(255,221,45,0.15)'
+      : team.rank % 2 === 0
+        ? 'rgba(255,221,45,0.05)'
+        : '#ffffff';
+
+  return (
+    <motion.tr
+      layout
+      initial={{ opacity: 0, y: -20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 20 }}
+      transition={{
+        layout: { type: 'spring', stiffness: 300, damping: 30 },
+        opacity: { duration: 0.3 },
+      }}
+      className="border-b border-gray-100"
+      style={{ backgroundColor: rowBg }}
+    >
+      <td className="px-2 py-2 text-center">{rankBadge(team.rank)}</td>
+      <td className="px-3 py-2">
+        <span
+          className={`font-semibold text-sm ${team.rank <= 3 ? 'text-black' : 'text-gray-800'}`}
+        >
+          {team.teamName}
+        </span>
+      </td>
+      <td className="px-2 py-2 text-center">
+        <span className="font-mono font-bold">{team.score}</span>
+      </td>
+      <td className="px-2 py-2 text-center">
+        <span className="font-mono text-red-600 text-xs">{team.penalty}</span>
+      </td>
+      {taskLetters.map((letter) => {
+        const p = team.problems?.[letter];
+        return (
+          <td key={`t-${letter}`} className="px-1 py-2 text-center">
+            {p?.solved ? (
+              <span className="font-mono font-bold text-green-700">+</span>
+            ) : (
+              <span className="text-gray-300">—</span>
+            )}
+          </td>
+        );
+      })}
+      <td className="px-2 py-2 text-center border-l border-gray-200">
+        <span className="font-mono font-semibold text-purple-700">
+          {team.exercisesDone}
+        </span>
+      </td>
+      {Array.from({ length: exerciseCount }).map((_, i) => (
+        <td key={`e-${i}`} className="px-1 py-2 text-center">
+          {team.exercises[i] ? (
+            <span className="font-mono font-bold text-purple-700">✓</span>
+          ) : (
+            <span className="text-gray-300">—</span>
+          )}
+        </td>
+      ))}
+    </motion.tr>
+  );
+}
+
+function rankBadge(rank: number) {
+  if (rank === 1) return <Medal className="w-5 h-5 text-yellow-500 inline" />;
+  if (rank === 2) return <Medal className="w-5 h-5 text-gray-400 inline" />;
+  if (rank === 3) return <Medal className="w-5 h-5 text-amber-600 inline" />;
+  return <span className="font-mono font-bold text-gray-500">{rank}</span>;
 }

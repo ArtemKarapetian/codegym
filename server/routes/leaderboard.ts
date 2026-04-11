@@ -2,76 +2,123 @@ import { Hono } from 'hono';
 import { eq } from 'drizzle-orm';
 import { db } from '../db/client';
 import { cities } from '../db/schema';
-import { getLeaderboardForCity } from '../services/sheets-sync';
-import { authMiddleware } from '../middleware/auth';
+import {
+  getLeaderboardForCity,
+  resolveExerciseNames,
+  TASK_COUNT,
+  EXERCISE_COUNT,
+} from '../services/sheets-sync';
+import { authMiddleware, adminMiddleware } from '../middleware/auth';
 import type { JwtPayload } from '../middleware/auth';
 import type { TeamScore } from '@shared/types';
+import type { LeaderboardResponse } from '@shared/api';
 
 const FREEZE_MINUTES = 30;
 
-// In-memory snapshot per city. Once frozen, stays frozen until admin unfreezes.
-const frozenSnapshots = new Map<string, TeamScore[]>();
+// Per-city in-memory freeze snapshot. "manual" means an admin froze it with
+// the explicit button; "auto" means we crossed the T-30min threshold. Both
+// stay until admin unfreezes.
+interface FrozenSnapshot {
+  teams: TeamScore[];
+  kind: 'auto' | 'manual';
+}
+const frozenSnapshots = new Map<string, FrozenSnapshot>();
 
-function shouldShowLive(cityId: string): boolean {
-  if (frozenSnapshots.has(cityId)) return false;
+function parseExerciseNames(row: typeof cities.$inferSelect): string[] | null {
+  if (!row.exerciseNames) return null;
+  try {
+    const parsed: unknown = JSON.parse(row.exerciseNames);
+    if (Array.isArray(parsed) && parsed.every((v) => typeof v === 'string')) {
+      return parsed as string[];
+    }
+  } catch {
+    // fall through
+  }
+  return null;
+}
 
-  const city = db.select().from(cities).where(eq(cities.id, cityId)).get();
-  if (!city) return true;
-  if (city.timerStatus !== 'running' || !city.startTime) return true;
-
+function shouldAutoFreeze(city: typeof cities.$inferSelect): boolean {
+  if (city.timerStatus !== 'running' || !city.startTime) return false;
   const totalSeconds = city.durationMin * 60;
   const elapsed = Math.floor(
     (Date.now() - new Date(city.startTime).getTime()) / 1000,
   );
   const remaining = totalSeconds - elapsed;
-
-  if (remaining <= FREEZE_MINUTES * 60) return false;
-  return true;
+  return remaining <= FREEZE_MINUTES * 60;
 }
 
-export function unfreezeLeaderboard(cityId: string) {
-  frozenSnapshots.delete(cityId);
-}
+function buildResponse(city: typeof cities.$inferSelect): LeaderboardResponse {
+  const snapshot = getLeaderboardForCity(city.id);
+  const exerciseNames = resolveExerciseNames(
+    parseExerciseNames(city),
+    snapshot.exerciseNamesFromSheet,
+  );
 
-function getLeaderboard(cityId: string): TeamScore[] {
-  const live = shouldShowLive(cityId);
+  let teams: TeamScore[];
+  let frozen = false;
 
-  if (!live) {
-    const snap = frozenSnapshots.get(cityId);
-    if (snap) return snap;
-
-    // First freeze — take snapshot
-    const data = getLeaderboardForCity(cityId);
-    frozenSnapshots.set(cityId, data);
-    return data;
+  const existing = frozenSnapshots.get(city.id);
+  if (existing) {
+    teams = existing.teams;
+    frozen = true;
+  } else if (shouldAutoFreeze(city)) {
+    frozenSnapshots.set(city.id, { teams: snapshot.teams, kind: 'auto' });
+    teams = snapshot.teams;
+    frozen = true;
+  } else {
+    teams = snapshot.teams;
   }
 
-  return getLeaderboardForCity(cityId);
+  return {
+    teams,
+    frozen,
+    exerciseNames,
+    taskCount: TASK_COUNT,
+    exerciseCount: EXERCISE_COUNT,
+  };
 }
 
 const router = new Hono<{ Variables: { user: JwtPayload } }>();
 
-// Authenticated leaderboard
-router.get('/cities/:cityId/leaderboard', authMiddleware, (c) => {
-  const cityId = c.req.param('cityId');
-  return c.json(getLeaderboard(cityId));
-});
-
-// Public leaderboard (no auth, for big screen)
+// Public leaderboard — powers both the big-screen display and the landing page
 router.get('/public/cities/:cityId/leaderboard', (c) => {
   const cityId = c.req.param('cityId');
-  const isFrozen = frozenSnapshots.has(cityId);
-  c.header('X-Leaderboard-Frozen', isFrozen ? '1' : '0');
-  return c.json(getLeaderboard(cityId));
+  const city = db.select().from(cities).where(eq(cities.id, cityId)).get();
+  if (!city) return c.json({ error: 'City not found' }, 404);
+  return c.json(buildResponse(city));
 });
 
-// Admin: unfreeze leaderboard
-router.post('/cities/:cityId/leaderboard/unfreeze', authMiddleware, (c) => {
-  const user = c.get('user');
-  if (user.role !== 'admin') return c.json({ error: 'Forbidden' }, 403);
-  const cityId = c.req.param('cityId');
-  unfreezeLeaderboard(cityId);
-  return c.json({ ok: true, message: 'Leaderboard unfrozen' });
-});
+// Admin: freeze leaderboard manually
+router.post(
+  '/cities/:cityId/leaderboard/freeze',
+  authMiddleware,
+  adminMiddleware,
+  (c) => {
+    const cityId = c.req.param('cityId');
+    const city = db.select().from(cities).where(eq(cities.id, cityId)).get();
+    if (!city) return c.json({ error: 'City not found' }, 404);
+
+    const snapshot = getLeaderboardForCity(cityId);
+    frozenSnapshots.set(cityId, { teams: snapshot.teams, kind: 'manual' });
+    return c.json({ ok: true, frozen: true });
+  },
+);
+
+// Admin: unfreeze leaderboard (manual or auto)
+router.post(
+  '/cities/:cityId/leaderboard/unfreeze',
+  authMiddleware,
+  adminMiddleware,
+  (c) => {
+    const cityId = c.req.param('cityId');
+    frozenSnapshots.delete(cityId);
+    return c.json({ ok: true, frozen: false });
+  },
+);
+
+// Hook for timer route: when admin restarts the contest, drop any freeze.
+export function clearFreeze(cityId: string) {
+  frozenSnapshots.delete(cityId);
+}
 
 export default router;

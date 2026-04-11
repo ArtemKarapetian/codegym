@@ -1,33 +1,23 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  Plus,
-  MapPin,
-  Clock,
-  Trophy,
-  RefreshCw,
-  UserPlus,
-  Download,
-} from 'lucide-react';
+import { MapPin, Clock, Trophy, RefreshCw, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/app/components/ui/button';
-import { Input } from '@/app/components/ui/input';
-import { Label } from '@/app/components/ui/label';
 import { Badge } from '@/app/components/ui/badge';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/app/components/ui/dialog';
 import { api } from '@/lib/api';
 import type { City } from '@shared/types';
 
+const STATUS_STYLES: Record<string, { label: string; color: string }> = {
+  pending: { label: 'Ожидание', color: 'bg-gray-100 text-gray-700' },
+  running: { label: 'Идёт', color: 'bg-green-100 text-green-700' },
+  paused: { label: 'Пауза', color: 'bg-yellow-100 text-yellow-700' },
+  finished: { label: 'Завершён', color: 'bg-gray-200 text-gray-600' },
+};
+
 export function CitiesPage() {
   const [cities, setCities] = useState<City[]>([]);
-  const [showCreate, setShowCreate] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [generating, setGenerating] = useState(false);
+  const [now, setNow] = useState(new Date());
 
   const fetchCities = () => {
     api.get<City[]>('/api/cities').then(setCities).catch(console.error);
@@ -37,9 +27,8 @@ export function CitiesPage() {
     fetchCities();
   }, []);
 
-  const [now, setNow] = useState(new Date());
   useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 30000);
+    const t = setInterval(() => setNow(new Date()), 30_000);
     return () => clearInterval(t);
   }, []);
 
@@ -55,154 +44,81 @@ export function CitiesPage() {
     }
   };
 
-  const statusLabels: Record<string, { label: string; color: string }> = {
-    pending: { label: 'Ожидание', color: 'bg-gray-100 text-gray-700' },
-    running: { label: 'Идёт', color: 'bg-green-100 text-green-700' },
-    paused: { label: 'Пауза', color: 'bg-yellow-100 text-yellow-700' },
-    finished: { label: 'Завершён', color: 'bg-gray-200 text-gray-600' },
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const res = await api.post<{
+        synced: number;
+        cities: number;
+        failed: { cityName: string }[];
+      }>('/api/admin/sync-sheets', {});
+      const failed = res.failed.map((f) => f.cityName).join(', ');
+      toast.success(
+        `Города: ${res.cities}, строк: ${res.synced}` +
+          (failed ? `. Ошибки: ${failed}` : ''),
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Ошибка синхронизации');
+    } finally {
+      setSyncing(false);
+    }
   };
 
   return (
     <div className="max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Города</h1>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={async () => {
-              setSyncing(true);
-              try {
-                const res = await api.post<{
-                  synced: number;
-                  skippedNoCity: string[];
-                  error?: string;
-                }>('/api/admin/sync-sheets', {});
-                if (res.error) {
-                  toast.error(`Ошибка: ${res.error}`);
-                } else {
-                  toast.success(
-                    `Синхронизировано: ${res.synced} команд` +
-                      (res.skippedNoCity.length
-                        ? `. Города не найдены: ${res.skippedNoCity.join(', ')}`
-                        : ''),
-                  );
-                }
-              } catch (err) {
-                toast.error('Ошибка синхронизации');
-                console.error(err);
-              } finally {
-                setSyncing(false);
-              }
-            }}
-            disabled={syncing}
-            className="gap-2"
-          >
-            <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
-            {syncing ? 'Синхронизация...' : 'Google Sheets'}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={async () => {
-              setGenerating(true);
-              try {
-                const res = await api.post<{
-                  created: number;
-                  skipped: number;
-                  accounts: {
-                    city: string;
-                    teamName: string;
-                    login: string;
-                    password: string;
-                  }[];
-                  error?: string;
-                }>('/api/admin/generate-accounts', {});
-                if (res.error) {
-                  toast.error(`Ошибка: ${res.error}`);
-                } else if (res.created === 0) {
-                  toast.info(
-                    `Все аккаунты уже существуют (${res.skipped} команд)`,
-                  );
-                } else {
-                  // Download CSV with new accounts only
-                  let csv = 'Город,Команда,Логин,Пароль\n';
-                  for (const c of res.accounts) {
-                    csv += `"${c.city}","${c.teamName}","${c.login}","${c.password}"\n`;
-                  }
-                  const blob = new Blob(['\uFEFF' + csv], {
-                    type: 'text/csv;charset=utf-8;',
-                  });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = 'new-accounts.csv';
-                  a.click();
-                  URL.revokeObjectURL(url);
-                  toast.success(
-                    `Создано ${res.created} новых аккаунтов` +
-                      (res.skipped ? `, ${res.skipped} уже существовали` : ''),
-                  );
-                }
-              } catch (err) {
-                toast.error('Ошибка генерации');
-                console.error(err);
-              } finally {
-                setGenerating(false);
-              }
-            }}
-            disabled={generating}
-            className="gap-2"
-          >
-            <UserPlus
-              className={`w-4 h-4 ${generating ? 'animate-spin' : ''}`}
-            />
-            {generating ? 'Генерация...' : 'Аккаунты'}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => {
-              const token = localStorage.getItem('codegym_token');
-              window.open(
-                `/api/admin/credentials.csv?token=${token}`,
-                '_blank',
-              );
-            }}
-            className="gap-2"
-          >
-            <Download className="w-4 h-4" />
-            CSV
-          </Button>
-          <Button onClick={() => setShowCreate(true)} className="gap-2">
-            <Plus className="w-4 h-4" />
-            Добавить город
-          </Button>
+        <div>
+          <h1 className="text-2xl font-bold">Города</h1>
+          <p className="text-sm text-gray-500 mt-1">{cities.length} городов</p>
         </div>
+        <Button
+          variant="outline"
+          onClick={handleSync}
+          disabled={syncing}
+          className="gap-2"
+        >
+          <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+          {syncing ? 'Синхронизация...' : 'Sync Google Sheets'}
+        </Button>
       </div>
 
       <div className="grid gap-4">
         {cities.map((city) => {
-          const status = statusLabels[city.timerStatus] || statusLabels.pending;
+          const status =
+            STATUS_STYLES[city.timerStatus] ?? STATUS_STYLES.pending;
           return (
             <Link
               key={city.id}
               to={`/admin/cities/${city.id}`}
               className="bg-white rounded-xl border border-[var(--tinkoff-border)] p-5 hover:shadow-md transition-shadow flex items-center justify-between"
             >
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-[var(--tinkoff-yellow)]/20 rounded-xl flex items-center justify-center">
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-12 h-12 bg-[var(--tinkoff-yellow)]/20 rounded-xl flex items-center justify-center shrink-0">
                   <MapPin className="w-6 h-6" />
                 </div>
-                <div>
-                  <h3 className="font-semibold text-lg">{city.name}</h3>
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-lg truncate">
+                    {city.name}
+                  </h3>
                   <div className="flex items-center gap-3 text-sm text-gray-500 mt-1">
                     <span className="flex items-center gap-1">
                       <Clock className="w-3 h-3" />
                       {getCityTime(city.timezone)}
                     </span>
                     <span>{city.durationMin} мин</span>
+                    <span className="truncate">
+                      {city.sheetId ? (
+                        <span className="text-green-600">
+                          sheet: {city.sheetId.slice(0, 8)}…
+                        </span>
+                      ) : (
+                        <span className="text-red-500">sheet не привязан</span>
+                      )}
+                    </span>
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 shrink-0">
                 <Badge className={status.color}>{status.label}</Badge>
                 <Button
                   variant="ghost"
@@ -211,7 +127,7 @@ export function CitiesPage() {
                     e.preventDefault();
                     window.open(`/public/leaderboard/${city.id}`, '_blank');
                   }}
-                  title="Открыть лидерборд"
+                  title="Открыть лидерборд в новой вкладке"
                 >
                   <Trophy className="w-4 h-4 text-[var(--tinkoff-yellow)]" />
                 </Button>
@@ -223,88 +139,22 @@ export function CitiesPage() {
         {cities.length === 0 && (
           <div className="text-center py-16 text-gray-400">
             <MapPin className="w-12 h-12 mx-auto mb-3 opacity-30" />
-            <p>Нет городов. Создайте первый.</p>
+            <p>Нет городов.</p>
           </div>
         )}
       </div>
 
-      <CreateCityDialog
-        open={showCreate}
-        onClose={() => setShowCreate(false)}
-        onCreated={fetchCities}
-      />
+      <div className="mt-8 text-xs text-gray-400 text-center">
+        <a
+          href="https://sheets.googleapis.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 hover:text-gray-600"
+        >
+          <ExternalLink className="w-3 h-3" />
+          Google Sheets API
+        </a>
+      </div>
     </div>
-  );
-}
-
-function CreateCityDialog({
-  open,
-  onClose,
-  onCreated,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onCreated: () => void;
-}) {
-  const [name, setName] = useState('');
-  const [timezone, setTimezone] = useState('Europe/Moscow');
-  const [durationMin, setDurationMin] = useState(240);
-  const [mapEnabled, setMapEnabled] = useState(true);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await api.post('/api/cities', { name, timezone, durationMin, mapEnabled });
-    onCreated();
-    onClose();
-    setName('');
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Новый город</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label>Название</Label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Москва"
-              required
-            />
-          </div>
-          <div>
-            <Label>Часовой пояс</Label>
-            <Input
-              value={timezone}
-              onChange={(e) => setTimezone(e.target.value)}
-              placeholder="Europe/Moscow"
-            />
-          </div>
-          <div>
-            <Label>Длительность (минуты)</Label>
-            <Input
-              type="number"
-              value={durationMin}
-              onChange={(e) => setDurationMin(Number(e.target.value))}
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="mapEnabled"
-              checked={mapEnabled}
-              onChange={(e) => setMapEnabled(e.target.checked)}
-            />
-            <Label htmlFor="mapEnabled">Показывать карту</Label>
-          </div>
-          <Button type="submit" className="w-full">
-            Создать
-          </Button>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }
