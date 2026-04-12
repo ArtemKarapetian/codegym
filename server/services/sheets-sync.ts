@@ -121,22 +121,29 @@ function sheetValuesUrl(sheetId: string, range: string): string {
   );
 }
 
-// Per-task gating. Task k (1-indexed) requires min(k-1, 8) exercises: task 1
-// is free, each subsequent task needs one more exercise, and the last one is
-// optional (task 10 counts as soon as 8 exercises are done). A raw-solved
-// task that hasn't met its exercise quota is NOT shown as solved.
-function requiredExercisesForTask(taskIndex1Based: number): number {
-  return Math.min(taskIndex1Based - 1, EXERCISE_COUNT - 1);
-}
-
+// Count-based gating: score = min(rawSolved, exercisesDone). When all 9
+// exercises are done the last (10th) task doesn't need an extra exercise, so
+// all 10 tasks can count. If score < rawSolved, the earliest solved tasks
+// (by column position) are the ones that count.
 function applyPerTaskGating(
   taskFlags: boolean[],
   exercisesDone: number,
 ): boolean[] {
-  return taskFlags.map((raw, i) => {
-    if (!raw) return false;
-    return exercisesDone >= requiredExercisesForTask(i + 1);
-  });
+  const rawSolved = taskFlags.filter(Boolean).length;
+  const allowedCount = Math.min(
+    rawSolved,
+    exercisesDone >= EXERCISE_COUNT ? TASK_COUNT : exercisesDone,
+  );
+
+  const result = taskFlags.map(() => false);
+  let remaining = allowedCount;
+  for (let i = 0; i < taskFlags.length && remaining > 0; i++) {
+    if (taskFlags[i]) {
+      result[i] = true;
+      remaining--;
+    }
+  }
+  return result;
 }
 
 interface ParsedRow {
