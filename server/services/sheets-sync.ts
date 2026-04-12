@@ -85,7 +85,14 @@ function parseTaskCell(val: string): TaskCell {
 function isExerciseDone(val: string): boolean {
   const v = (val ?? '').trim().toLowerCase();
   if (!v) return false;
-  if (v === '0' || v === '-' || v === '−' || v === 'нет' || v === 'no') {
+  if (
+    v === '0' ||
+    v === '-' ||
+    v === '−' ||
+    v === 'нет' ||
+    v === 'no' ||
+    v == 'незачет'
+  ) {
     return false;
   }
   if (v.startsWith('-') || v.startsWith('−')) return false;
